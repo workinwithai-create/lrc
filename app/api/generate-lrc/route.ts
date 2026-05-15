@@ -272,143 +272,117 @@ function alignLyricsToWords(userLines: string[], words: WhisperWord[]): TimedLin
     'you','my','me','we','he','she','so','do','be','as','if','by','up','no','oh',
     'yeah','ooh','ah','uh','mm','na','la','hey','now','just','got','get','go','all']);
 
-  const wNorm = words.map(w => ({ ...w, norm: norm(w.word) }));
   const totalDuration = getLastWordEnd(words);
+  const whisperNorm = words.map(w => ({ ...w, norm: norm(w.word) }));
 
-  // Pre-compute expected time for each line based on proportional position
-  const contentCount = userLines.filter(l => !isMarker(l)).length;
-  let contentIdx = 0;
-  const expectedTimes: number[] = userLines.map(l => {
-    if (isMarker(l)) return -1;
-    const t = (contentIdx / Math.max(contentCount - 1, 1)) * totalDuration;
-    contentIdx++;
-    return t;
-  });
-
-  // Each line searches within ±20% of song duration around its expected time
-  const WINDOW = totalDuration * 0.20;
-
-  function getAnchors(line: string): string[] {
-    const parts = line.split(/\s+/).map(norm);
-    const strong = parts.slice(0, 5).filter(w => w.length >= 3 && !COMMON.has(w));
-    if (strong.length > 0) return strong.slice(0, 2);
-    return parts.slice(0, 3).filter(w => w.length >= 2);
+  // Flatten lyric lines into words, recording which line each word came from
+  const lyricWords: { word: string; lineIdx: number }[] = [];
+  for (let i = 0; i < userLines.length; i++) {
+    if (isMarker(userLines[i])) continue;
+    for (const raw of userLines[i].split(/\s+/)) {
+      const w = norm(raw);
+      if (w.length >= 1) lyricWords.push({ word: w, lineIdx: i });
+    }
   }
 
-  function scoreAt(lineNorm: string[], j: number): number {
-    let score = 0;
-    let k = j;
-    for (let li = 0; li < Math.min(lineNorm.length, 5); li++) {
-      const t = lineNorm[li];
-      if (t.length < 2) continue;
-      if (COMMON.has(t)) { score += 0.2; continue; }
-      let hit = false;
-      for (let kk = k; kk < Math.min(k + 5, wNorm.length); kk++) {
-        const wn = wNorm[kk].norm;
-        if (wn === t || (t.length >= 4 && (wn.startsWith(t.slice(0, -1)) || t.startsWith(wn.slice(0, -1))))) {
-          score += 1;
-          k = kk + 1;
-          hit = true;
-          break;
+  const N = lyricWords.length;
+  const M = whisperNorm.length;
+
+  // Score how well a lyric word matches a Whisper word
+  function matchScore(lw: string, ww: string): number {
+    if (!lw || !ww) return -1;
+    if (lw === ww) return COMMON.has(lw) ? 0.5 : 2.0;
+    if (lw.length >= 4 && ww.length >= 4) {
+      if (lw.startsWith(ww.slice(0, -1)) || ww.startsWith(lw.slice(0, -1))) return 1.5;
+    }
+    return -1;
+  }
+
+  // Global sequence alignment (Needleman-Wunsch) — handles repeated sections correctly
+  // because both lyric text and Whisper output contain each chorus twice in sequence.
+  const GAP_LYRIC = -0.5;    // penalty for a lyric word Whisper didn't transcribe
+  const GAP_WHISPER = -0.3;  // penalty for a Whisper word not in the lyrics (filler/noise)
+
+  const lyricToWhisper = new Map<number, number>();
+
+  if (N > 0 && M > 0 && N * M <= 600_000) {
+    const W = M + 1;
+    const dp = new Float32Array((N + 1) * W);
+    const trace = new Uint8Array((N + 1) * W); // 0=align, 1=skip lyric, 2=skip whisper
+
+    for (let i = 0; i <= N; i++) { dp[i * W] = i * GAP_LYRIC; trace[i * W] = 1; }
+    for (let j = 0; j <= M; j++) { dp[j] = j * GAP_WHISPER; trace[j] = 2; }
+    trace[0] = 0;
+
+    for (let i = 1; i <= N; i++) {
+      for (let j = 1; j <= M; j++) {
+        const ms = matchScore(lyricWords[i - 1].word, whisperNorm[j - 1].norm);
+        const diag    = dp[(i - 1) * W + (j - 1)] + ms;
+        const skipL   = dp[(i - 1) * W + j] + GAP_LYRIC;
+        const skipW   = dp[i * W + (j - 1)] + GAP_WHISPER;
+        if (diag >= skipL && diag >= skipW) {
+          dp[i * W + j] = diag; trace[i * W + j] = 0;
+        } else if (skipL >= skipW) {
+          dp[i * W + j] = skipL; trace[i * W + j] = 1;
+        } else {
+          dp[i * W + j] = skipW; trace[i * W + j] = 2;
         }
       }
-      if (!hit && li === 0) return 0;
     }
-    return score;
+
+    // Backtrack alignment path
+    let bi = N, bj = M;
+    while (bi > 0 && bj > 0) {
+      const t = trace[bi * W + bj];
+      if (t === 0) { lyricToWhisper.set(bi - 1, bj - 1); bi--; bj--; }
+      else if (t === 1) { bi--; }
+      else { bj--; }
+    }
   }
 
-  // Find first whisper word index at or after a given time
-  function idxAtTime(t: number): number {
-    for (let j = 0; j < wNorm.length; j++) {
-      if (wNorm[j].start >= t) return j;
+  // Derive line timestamps: first aligned Whisper word for each lyric line
+  const lineTimestamps = new Map<number, number>();
+  for (let k = 0; k < N; k++) {
+    const wi = lyricToWhisper.get(k);
+    if (wi === undefined) continue;
+    const lineIdx = lyricWords[k].lineIdx;
+    if (!lineTimestamps.has(lineIdx)) {
+      lineTimestamps.set(lineIdx, words[wi].start);
     }
-    return wNorm.length;
   }
 
   type MaybeTimedLine = { line: string; seconds: number; matched: boolean };
-  const result: MaybeTimedLine[] = [];
-  let searchFrom = 0;
+  const result: MaybeTimedLine[] = userLines.map((line, i) => ({
+    line,
+    seconds: isMarker(line) ? -1 : (lineTimestamps.get(i) ?? -1),
+    matched: !isMarker(line) && lineTimestamps.has(i),
+  }));
 
-  // --- PASS 1: find confident matches within expected time window ---
-  for (let i = 0; i < userLines.length; i++) {
-    const line = userLines[i];
-
-    if (isMarker(line)) {
-      result.push({ line, seconds: -1, matched: false });
-      continue;
-    }
-
-    const lineNorm = line.split(/\s+/).map(norm);
-    const anchors = getAnchors(line);
-
-    if (anchors.length === 0) {
-      result.push({ line, seconds: -1, matched: false });
-      continue;
-    }
-
-    const expectedTime = expectedTimes[i];
-    // Search from max(searchFrom, window start) to window end
-    const windowStart = Math.max(0, expectedTime - WINDOW);
-    const windowEnd = expectedTime + WINDOW;
-    const jStart = Math.max(searchFrom, idxAtTime(windowStart));
-    const jEnd = Math.min(wNorm.length, idxAtTime(windowEnd) + 5);
-
-    let bestIdx = -1;
-    let bestScore = 0;
-
-    for (let j = jStart; j < jEnd; j++) {
-      const wn = wNorm[j].norm;
-      const isAnchor = anchors.some(a =>
-        wn === a || (a.length >= 4 && (wn.startsWith(a.slice(0, -1)) || a.startsWith(wn.slice(0, -1))))
-      );
-      if (!isAnchor) continue;
-
-      const score = scoreAt(lineNorm, j);
-      if (score > bestScore) {
-        bestScore = score;
-        bestIdx = j;
-        if (bestScore >= 2) break;
-      }
-    }
-
-    if (bestIdx !== -1 && bestScore >= 1) {
-      result.push({ line, seconds: wNorm[bestIdx].start, matched: true });
-      searchFrom = bestIdx + 1;
-    } else {
-      result.push({ line, seconds: -1, matched: false });
-    }
-  }
-
-  // --- PASS 2: interpolate unmatched lines between bracketing matched neighbors ---
-  let i = 0;
-  while (i < result.length) {
-    if (result[i].seconds >= 0 || isMarker(result[i].line)) { i++; continue; }
-
-    // Collect the run of unmatched non-marker lines
-    let runEnd = i;
+  // Interpolate unmatched content lines between their matched neighbors
+  let pi = 0;
+  while (pi < result.length) {
+    if (result[pi].seconds >= 0 || isMarker(result[pi].line)) { pi++; continue; }
+    let runEnd = pi;
     while (runEnd < result.length && result[runEnd].seconds < 0 && !isMarker(result[runEnd].line)) {
       runEnd++;
     }
-
-    // Find bracketing matched seconds
     let prevSec = 0;
-    for (let j = i - 1; j >= 0; j--) {
+    for (let j = pi - 1; j >= 0; j--) {
       if (result[j].seconds >= 0 && !isMarker(result[j].line)) { prevSec = result[j].seconds; break; }
     }
     let nextSec = totalDuration;
     for (let j = runEnd; j < result.length; j++) {
       if (result[j].seconds >= 0 && !isMarker(result[j].line)) { nextSec = result[j].seconds; break; }
     }
-
-    const count = runEnd - i;
+    const count = runEnd - pi;
     const step = (nextSec - prevSec) / (count + 1);
     for (let k = 0; k < count; k++) {
-      result[i + k].seconds = prevSec + step * (k + 1);
+      result[pi + k].seconds = prevSec + step * (k + 1);
     }
-    i = runEnd;
+    pi = runEnd;
   }
 
-  // Place section markers just before the next real line
+  // Place section markers just before the following real line
   for (let idx = 0; idx < result.length; idx++) {
     if (!isMarker(result[idx].line)) continue;
     let ref = -1;
@@ -423,7 +397,7 @@ function alignLyricsToWords(userLines: string[], words: WhisperWord[]): TimedLin
     result[idx].seconds = Math.max((ref >= 0 ? ref : 0) - 1.0, 0);
   }
 
-  // Monotonic fix — timestamps must always move forward
+  // Ensure timestamps are monotonically increasing
   for (let idx = 1; idx < result.length; idx++) {
     if (result[idx].seconds < result[idx - 1].seconds) {
       result[idx].seconds = result[idx - 1].seconds + 0.2;
