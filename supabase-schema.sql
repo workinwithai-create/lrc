@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   credits integer DEFAULT 1,                  -- free songs remaining
   monthly_quota_remaining integer DEFAULT 0,  -- resets each billing period
   monthly_quota_reset_at timestamptz,
+  is_admin boolean DEFAULT false,             -- unlimited access, never decremented
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );

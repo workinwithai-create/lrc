@@ -7,6 +7,7 @@ export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 type WhisperWord = { word: string; start: number; end: number };
+type DeepgramWord = { word: string; start: number; end: number; confidence: number };
 type TimedLine = { line: string; seconds: number };
 
 export async function POST(req: NextRequest) {
@@ -30,11 +31,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
+    const isAdmin = profile.is_admin === true;
     const hasActiveSub = profile.subscription_status === 'active';
     const hasMonthlyQuota = hasActiveSub && profile.monthly_quota_remaining > 0;
     const hasCredits = profile.credits > 0;
 
-    if (!hasMonthlyQuota && !hasCredits) {
+    if (!isAdmin && !hasMonthlyQuota && !hasCredits) {
       return NextResponse.json(
         {
           error: 'Out of credits',
@@ -68,47 +70,59 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- WHISPER ---
+    // Buffer audio once — shared between Whisper and Deepgram
+    const audioBuffer = await audioFile.arrayBuffer();
+    const audioForWhisper = new File([audioBuffer], audioFile.name, { type: audioFile.type });
+
+    // --- TRANSCRIBE: Whisper + Deepgram in parallel ---
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1',
-      response_format: 'verbose_json',
-      timestamp_granularities: ['word'],
-    });
+    const [whisperResult, deepgramWords] = await Promise.all([
+      openai.audio.transcriptions.create({
+        file: audioForWhisper,
+        model: 'whisper-1',
+        response_format: 'verbose_json',
+        timestamp_granularities: ['word'],
+      }),
+      transcribeWithDeepgram(audioBuffer, audioFile.type),
+    ]);
 
-    const words: WhisperWord[] = transcription.words || [];
+    const whisperWords: WhisperWord[] = whisperResult.words || [];
 
-    if (words.length === 0) {
+    if (whisperWords.length === 0) {
       return NextResponse.json(
         { error: 'No speech detected in audio.' },
         { status: 422 }
       );
     }
 
+    // Merge Deepgram timestamps into Whisper words when confident
+    const mergedWords = mergeWordTimestamps(whisperWords, deepgramWords);
+
     // --- BUILD TIMED LINES ---
     let timedLines: TimedLine[];
     if (mode === 'strict') {
-      timedLines = groupWordsIntoLines(words);
+      timedLines = groupWordsIntoLines(mergedWords);
     } else {
-      timedLines = alignLyricsToWords(parseLyrics(lyricsRaw), words);
+      timedLines = alignLyricsToWords(parseLyrics(lyricsRaw), mergedWords);
     }
 
-    const duration = transcription.duration || getLastWordEnd(words);
+    const duration = whisperResult.duration || getLastWordEnd(mergedWords);
     const lrcContent = buildLRC({ title, artist, durationSec: duration, lines: timedLines });
 
-    // --- DECREMENT QUOTA ---
-    if (hasMonthlyQuota) {
-      await supabase
-        .from('profiles')
-        .update({ monthly_quota_remaining: profile.monthly_quota_remaining - 1 })
-        .eq('id', user.id);
-    } else {
-      await supabase
-        .from('profiles')
-        .update({ credits: profile.credits - 1 })
-        .eq('id', user.id);
+    // --- DECREMENT QUOTA (skip for admin) ---
+    if (!isAdmin) {
+      if (hasMonthlyQuota) {
+        await supabase
+          .from('profiles')
+          .update({ monthly_quota_remaining: profile.monthly_quota_remaining - 1 })
+          .eq('id', user.id);
+      } else {
+        await supabase
+          .from('profiles')
+          .update({ credits: profile.credits - 1 })
+          .eq('id', user.id);
+      }
     }
 
     // --- SAVE SONG ---
@@ -121,31 +135,37 @@ export async function POST(req: NextRequest) {
         duration_seconds: duration,
         mode,
         lrc_content: lrcContent,
-        word_count: words.length,
+        word_count: mergedWords.length,
         line_count: timedLines.length,
       })
       .select()
       .single();
 
     // --- LOG USAGE ---
+    const deepgramUsed = deepgramWords.length > 0;
     await supabase.from('usage_log').insert({
       user_id: user.id,
       action: 'generate_lrc',
-      metadata: { song_id: song?.id, mode, duration },
-      cost_cents: Math.ceil((duration / 60) * 0.6), // Whisper: $0.006/min = 0.6 cents
+      metadata: { song_id: song?.id, mode, duration, deepgram_used: deepgramUsed },
+      cost_cents: Math.ceil((duration / 60) * 0.6),
     });
+
+    const creditsRemaining = isAdmin
+      ? null  // null = unlimited
+      : hasMonthlyQuota
+        ? profile.monthly_quota_remaining - 1
+        : profile.credits - 1;
 
     return NextResponse.json({
       success: true,
       lrc: lrcContent,
-      wordCount: words.length,
+      wordCount: mergedWords.length,
       lineCount: timedLines.length,
       duration,
       mode,
       songId: song?.id,
-      creditsRemaining: hasMonthlyQuota
-        ? profile.monthly_quota_remaining - 1
-        : profile.credits - 1,
+      creditsRemaining,
+      deepgramUsed,
     });
   } catch (err: any) {
     console.error('LRC generation error:', err);
@@ -154,6 +174,64 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// ---------- Deepgram ----------
+
+async function transcribeWithDeepgram(audioBuffer: ArrayBuffer, mimeType: string): Promise<DeepgramWord[]> {
+  if (!process.env.DEEPGRAM_API_KEY) return [];
+  try {
+    const { createClient } = await import('@deepgram/sdk');
+    const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
+    const { result, error } = await deepgram.listen.prerecorded.transcribeFile(
+      Buffer.from(audioBuffer),
+      { model: 'nova-2', smart_format: false, punctuate: false, mimetype: mimeType }
+    );
+    if (error) return [];
+    return result?.results?.channels?.[0]?.alternatives?.[0]?.words ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// ---------- Timestamp merging ----------
+
+function mergeWordTimestamps(whisperWords: WhisperWord[], dgWords: DeepgramWord[]): WhisperWord[] {
+  if (dgWords.length === 0) return whisperWords;
+
+  const normWord = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const dgNorm = dgWords.map(w => ({ ...w, norm: normWord(w.word) }));
+
+  return whisperWords.map((w, i) => {
+    const wNorm = normWord(w.word);
+    const searchStart = Math.max(0, i - 3);
+    const searchEnd = Math.min(dgNorm.length, i + 4);
+
+    let best: DeepgramWord | null = null;
+    let bestConfidence = 0;
+
+    for (let j = searchStart; j < searchEnd; j++) {
+      const dg = dgNorm[j];
+      const isMatch = dg.norm === wNorm || dg.norm.includes(wNorm) || wNorm.includes(dg.norm);
+      if (!isMatch) continue;
+      const timeDiff = Math.abs(dg.start - w.start);
+      if (timeDiff < 1.0 && dgWords[j].confidence > bestConfidence) {
+        best = dgWords[j];
+        bestConfidence = dgWords[j].confidence;
+      }
+    }
+
+    // Only merge when Deepgram is confident (>70%) — otherwise trust Whisper alone
+    if (best && bestConfidence > 0.7) {
+      return {
+        word: w.word,
+        start: (w.start + best.start) / 2,
+        end: (w.end + best.end) / 2,
+      };
+    }
+
+    return w;
+  });
 }
 
 // ---------- Helpers ----------
