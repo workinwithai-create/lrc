@@ -268,7 +268,6 @@ function groupWordsIntoLines(words: WhisperWord[]): TimedLine[] {
 function alignLyricsToWords(userLines: string[], words: WhisperWord[]): TimedLine[] {
   const isMarker = (l: string) => /^\[.+\]$/.test(l.trim());
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-  // Words too common to anchor on reliably
   const COMMON = new Set(['i','a','the','and','or','but','in','on','at','to','of','is','it',
     'you','my','me','we','he','she','so','do','be','as','if','by','up','no','oh',
     'yeah','ooh','ah','uh','mm','na','la','hey','now','just','got','get','go','all']);
@@ -276,7 +275,19 @@ function alignLyricsToWords(userLines: string[], words: WhisperWord[]): TimedLin
   const wNorm = words.map(w => ({ ...w, norm: norm(w.word) }));
   const totalDuration = getLastWordEnd(words);
 
-  // Pick the 1-2 most distinctive words from the first 5 words of a line
+  // Pre-compute expected time for each line based on proportional position
+  const contentCount = userLines.filter(l => !isMarker(l)).length;
+  let contentIdx = 0;
+  const expectedTimes: number[] = userLines.map(l => {
+    if (isMarker(l)) return -1;
+    const t = (contentIdx / Math.max(contentCount - 1, 1)) * totalDuration;
+    contentIdx++;
+    return t;
+  });
+
+  // Each line searches within ±20% of song duration around its expected time
+  const WINDOW = totalDuration * 0.20;
+
   function getAnchors(line: string): string[] {
     const parts = line.split(/\s+/).map(norm);
     const strong = parts.slice(0, 5).filter(w => w.length >= 3 && !COMMON.has(w));
@@ -284,7 +295,6 @@ function alignLyricsToWords(userLines: string[], words: WhisperWord[]): TimedLin
     return parts.slice(0, 3).filter(w => w.length >= 2);
   }
 
-  // How well does whisper position j match this line's words?
   function scoreAt(lineNorm: string[], j: number): number {
     let score = 0;
     let k = j;
@@ -302,17 +312,24 @@ function alignLyricsToWords(userLines: string[], words: WhisperWord[]): TimedLin
           break;
         }
       }
-      // First word must anchor — bail if it misses
       if (!hit && li === 0) return 0;
     }
     return score;
+  }
+
+  // Find first whisper word index at or after a given time
+  function idxAtTime(t: number): number {
+    for (let j = 0; j < wNorm.length; j++) {
+      if (wNorm[j].start >= t) return j;
+    }
+    return wNorm.length;
   }
 
   type MaybeTimedLine = { line: string; seconds: number; matched: boolean };
   const result: MaybeTimedLine[] = [];
   let searchFrom = 0;
 
-  // --- PASS 1: find confident matches ---
+  // --- PASS 1: find confident matches within expected time window ---
   for (let i = 0; i < userLines.length; i++) {
     const line = userLines[i];
 
@@ -329,14 +346,17 @@ function alignLyricsToWords(userLines: string[], words: WhisperWord[]): TimedLin
       continue;
     }
 
-    // Cap how far ahead we search — proportional to remaining transcript
-    const remaining = Math.max(userLines.length - i, 1);
-    const searchCap = Math.min(wNorm.length, searchFrom + Math.ceil(wNorm.length / remaining) + 15);
+    const expectedTime = expectedTimes[i];
+    // Search from max(searchFrom, window start) to window end
+    const windowStart = Math.max(0, expectedTime - WINDOW);
+    const windowEnd = expectedTime + WINDOW;
+    const jStart = Math.max(searchFrom, idxAtTime(windowStart));
+    const jEnd = Math.min(wNorm.length, idxAtTime(windowEnd) + 5);
 
     let bestIdx = -1;
     let bestScore = 0;
 
-    for (let j = searchFrom; j < searchCap; j++) {
+    for (let j = jStart; j < jEnd; j++) {
       const wn = wNorm[j].norm;
       const isAnchor = anchors.some(a =>
         wn === a || (a.length >= 4 && (wn.startsWith(a.slice(0, -1)) || a.startsWith(wn.slice(0, -1))))
