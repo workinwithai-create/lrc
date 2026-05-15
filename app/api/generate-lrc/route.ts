@@ -78,7 +78,6 @@ export async function POST(req: NextRequest) {
       timestamp_granularities: ['word'],
     });
 
-    // @ts-expect-error - words field exists when granularity is 'word'
     const words: WhisperWord[] = transcription.words || [];
 
     if (words.length === 0) {
