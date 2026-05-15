@@ -167,8 +167,8 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
           </div>
           <div className="font-serif italic text-sm text-mute px-1">
             {mode === 'smart'
-              ? 'Matches your pasted lyrics to what Whisper hears. Best when your lyrics are the source of truth.'
-              : "Uses Whisper's transcription directly. No lyrics needed — Whisper hears and writes."}
+              ? 'Paste your lyrics — the output keeps your exact lines with Whisper timing. Use this for Smule.'
+              : "No lyrics needed. Whisper transcribes and groups by pauses. Output won't match your lyric lines."}
           </div>
 
           {/* Audio upload */}

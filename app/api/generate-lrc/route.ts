@@ -266,74 +266,151 @@ function groupWordsIntoLines(words: WhisperWord[]): TimedLine[] {
 }
 
 function alignLyricsToWords(userLines: string[], words: WhisperWord[]): TimedLine[] {
-  const timedLines: TimedLine[] = [];
   const isMarker = (l: string) => /^\[.+\]$/.test(l.trim());
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  // Words too common to anchor on reliably
+  const COMMON = new Set(['i','a','the','and','or','but','in','on','at','to','of','is','it',
+    'you','my','me','we','he','she','so','do','be','as','if','by','up','no','oh',
+    'yeah','ooh','ah','uh','mm','na','la','hey','now','just','got','get','go','all']);
 
-  const whisperNorm = words.map(w => ({ ...w, norm: norm(w.word) }));
-  const pendingMarkers: number[] = [];
+  const wNorm = words.map(w => ({ ...w, norm: norm(w.word) }));
+  const totalDuration = getLastWordEnd(words);
+
+  // Pick the 1-2 most distinctive words from the first 5 words of a line
+  function getAnchors(line: string): string[] {
+    const parts = line.split(/\s+/).map(norm);
+    const strong = parts.slice(0, 5).filter(w => w.length >= 3 && !COMMON.has(w));
+    if (strong.length > 0) return strong.slice(0, 2);
+    return parts.slice(0, 3).filter(w => w.length >= 2);
+  }
+
+  // How well does whisper position j match this line's words?
+  function scoreAt(lineNorm: string[], j: number): number {
+    let score = 0;
+    let k = j;
+    for (let li = 0; li < Math.min(lineNorm.length, 5); li++) {
+      const t = lineNorm[li];
+      if (t.length < 2) continue;
+      if (COMMON.has(t)) { score += 0.2; continue; }
+      let hit = false;
+      for (let kk = k; kk < Math.min(k + 5, wNorm.length); kk++) {
+        const wn = wNorm[kk].norm;
+        if (wn === t || (t.length >= 4 && (wn.startsWith(t.slice(0, -1)) || t.startsWith(wn.slice(0, -1))))) {
+          score += 1;
+          k = kk + 1;
+          hit = true;
+          break;
+        }
+      }
+      // First word must anchor — bail if it misses
+      if (!hit && li === 0) return 0;
+    }
+    return score;
+  }
+
+  type MaybeTimedLine = { line: string; seconds: number; matched: boolean };
+  const result: MaybeTimedLine[] = [];
   let searchFrom = 0;
 
+  // --- PASS 1: find confident matches ---
   for (let i = 0; i < userLines.length; i++) {
     const line = userLines[i];
+
     if (isMarker(line)) {
-      pendingMarkers.push(i);
-      timedLines.push({ line, seconds: -1 });
+      result.push({ line, seconds: -1, matched: false });
       continue;
     }
 
-    const lineWords = line.split(/\s+/).map(norm).filter(w => w.length >= 3);
-    if (lineWords.length === 0) {
-      const ratio = i / Math.max(userLines.length - 1, 1);
-      timedLines.push({ line, seconds: ratio * getLastWordEnd(words) });
+    const lineNorm = line.split(/\s+/).map(norm);
+    const anchors = getAnchors(line);
+
+    if (anchors.length === 0) {
+      result.push({ line, seconds: -1, matched: false });
       continue;
     }
 
-    const target = lineWords[0];
-    let matchIdx = -1;
-    for (let j = searchFrom; j < whisperNorm.length; j++) {
-      if (whisperNorm[j].norm === target) { matchIdx = j; break; }
-      if (whisperNorm[j].norm.startsWith(target) || target.startsWith(whisperNorm[j].norm)) {
-        if (matchIdx === -1) matchIdx = j;
+    // Cap how far ahead we search — proportional to remaining transcript
+    const remaining = Math.max(userLines.length - i, 1);
+    const searchCap = Math.min(wNorm.length, searchFrom + Math.ceil(wNorm.length / remaining) + 15);
+
+    let bestIdx = -1;
+    let bestScore = 0;
+
+    for (let j = searchFrom; j < searchCap; j++) {
+      const wn = wNorm[j].norm;
+      const isAnchor = anchors.some(a =>
+        wn === a || (a.length >= 4 && (wn.startsWith(a.slice(0, -1)) || a.startsWith(wn.slice(0, -1))))
+      );
+      if (!isAnchor) continue;
+
+      const score = scoreAt(lineNorm, j);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = j;
+        if (bestScore >= 2) break;
       }
     }
 
-    if (matchIdx !== -1) {
-      timedLines.push({ line, seconds: whisperNorm[matchIdx].start });
-      searchFrom = matchIdx + 1;
+    if (bestIdx !== -1 && bestScore >= 1) {
+      result.push({ line, seconds: wNorm[bestIdx].start, matched: true });
+      searchFrom = bestIdx + 1;
     } else {
-      const prev = timedLines[timedLines.length - 1];
-      const prevSec = prev && prev.seconds >= 0 ? prev.seconds : 0;
-      const remaining = userLines.length - i;
-      timedLines.push({
-        line,
-        seconds: prevSec + (getLastWordEnd(words) - prevSec) / Math.max(remaining, 1),
-      });
+      result.push({ line, seconds: -1, matched: false });
     }
   }
 
-  // Place section markers
-  for (const mIdx of pendingMarkers) {
-    let nextReal = -1;
-    for (let j = mIdx + 1; j < timedLines.length; j++) {
-      if (timedLines[j].seconds >= 0) { nextReal = timedLines[j].seconds; break; }
+  // --- PASS 2: interpolate unmatched lines between bracketing matched neighbors ---
+  let i = 0;
+  while (i < result.length) {
+    if (result[i].seconds >= 0 || isMarker(result[i].line)) { i++; continue; }
+
+    // Collect the run of unmatched non-marker lines
+    let runEnd = i;
+    while (runEnd < result.length && result[runEnd].seconds < 0 && !isMarker(result[runEnd].line)) {
+      runEnd++;
     }
-    if (nextReal < 0) {
-      for (let j = mIdx - 1; j >= 0; j--) {
-        if (timedLines[j].seconds >= 0) { nextReal = timedLines[j].seconds + 2; break; }
+
+    // Find bracketing matched seconds
+    let prevSec = 0;
+    for (let j = i - 1; j >= 0; j--) {
+      if (result[j].seconds >= 0 && !isMarker(result[j].line)) { prevSec = result[j].seconds; break; }
+    }
+    let nextSec = totalDuration;
+    for (let j = runEnd; j < result.length; j++) {
+      if (result[j].seconds >= 0 && !isMarker(result[j].line)) { nextSec = result[j].seconds; break; }
+    }
+
+    const count = runEnd - i;
+    const step = (nextSec - prevSec) / (count + 1);
+    for (let k = 0; k < count; k++) {
+      result[i + k].seconds = prevSec + step * (k + 1);
+    }
+    i = runEnd;
+  }
+
+  // Place section markers just before the next real line
+  for (let idx = 0; idx < result.length; idx++) {
+    if (!isMarker(result[idx].line)) continue;
+    let ref = -1;
+    for (let j = idx + 1; j < result.length; j++) {
+      if (result[j].seconds >= 0 && !isMarker(result[j].line)) { ref = result[j].seconds; break; }
+    }
+    if (ref < 0) {
+      for (let j = idx - 1; j >= 0; j--) {
+        if (result[j].seconds >= 0) { ref = result[j].seconds + 2; break; }
       }
     }
-    timedLines[mIdx].seconds = Math.max(nextReal - 1.5, 0);
+    result[idx].seconds = Math.max((ref >= 0 ? ref : 0) - 1.0, 0);
   }
 
-  // Monotonic fix
-  for (let i = 1; i < timedLines.length; i++) {
-    if (timedLines[i].seconds < timedLines[i - 1].seconds) {
-      timedLines[i].seconds = timedLines[i - 1].seconds + 0.5;
+  // Monotonic fix — timestamps must always move forward
+  for (let idx = 1; idx < result.length; idx++) {
+    if (result[idx].seconds < result[idx - 1].seconds) {
+      result[idx].seconds = result[idx - 1].seconds + 0.2;
     }
   }
 
-  return timedLines;
+  return result.map(({ line, seconds }) => ({ line, seconds }));
 }
 
 function toTimestamp(seconds: number): string {
