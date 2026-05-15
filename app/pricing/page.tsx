@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
-export default function PricingPage() {
+function PricingContent() {
   const [loading, setLoading] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const canceled = searchParams.get('payment') === 'cancel';
@@ -118,4 +118,8 @@ export default function PricingPage() {
       </section>
     </main>
   );
+}
+
+export default function PricingPage() {
+  return <Suspense><PricingContent /></Suspense>;
 }
