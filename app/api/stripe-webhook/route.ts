@@ -73,8 +73,9 @@ export async function POST(req: NextRequest) {
         const isActive = sub.status === 'active' || sub.status === 'trialing';
 
         // periodEnd is on the first subscription item
-        const periodEnd = (sub as any).items?.data?.[0]?.current_period_end
-          ? new Date((sub as any).items.data[0].current_period_end * 1000).toISOString()
+        const periodEndTs = (sub as any)?.items?.data?.[0]?.current_period_end;
+        const periodEnd = periodEndTs
+          ? new Date(periodEndTs * 1000).toISOString()
           : null;
 
         await supabase

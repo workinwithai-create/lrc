@@ -11,8 +11,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { plan } = await req.json();
+    if (plan !== 'monthly' && plan !== 'pack') {
+      return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
+    }
     const priceId = plan === 'monthly' ? STRIPE_PRICES.MONTHLY : STRIPE_PRICES.PACK;
     const mode = plan === 'monthly' ? 'subscription' : 'payment';
+
+    console.log('[checkout] plan:', plan, 'priceId:', priceId, 'baseUrl:', process.env.NEXT_PUBLIC_SITE_URL);
 
     // Get or create Stripe customer
     const { data: profile } = await supabase
