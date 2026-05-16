@@ -22,6 +22,18 @@ export async function POST(req: NextRequest) {
       .single();
 
     let customerId = profile?.stripe_customer_id;
+
+    // Verify the stored customer ID is valid in the current Stripe mode
+    // (test-mode IDs break when switching to live mode)
+    if (customerId) {
+      try {
+        await stripe.customers.retrieve(customerId);
+      } catch {
+        customerId = null;
+        await supabase.from('profiles').update({ stripe_customer_id: null }).eq('id', user.id);
+      }
+    }
+
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
