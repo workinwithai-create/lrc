@@ -12,7 +12,7 @@ type TimedLine = { line: string; seconds: number };
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // --- AUTH ---
     const { data: { user } } = await supabase.auth.getUser();
