@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import ToolClient from '@/components/tool/ToolClient';
 
 export default async function ToolPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login?redirect=/tool');
 
