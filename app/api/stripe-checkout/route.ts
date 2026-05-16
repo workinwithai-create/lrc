@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         .eq('id', user.id);
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lrcforge.workinwithai.com';
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
