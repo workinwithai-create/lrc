@@ -30,9 +30,16 @@ export async function createClient() {
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 
 export function createAdmin() {
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!serviceKey) {
+    throw new Error('Missing Supabase service role key');
+  }
+
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
+    serviceKey,
     { auth: { persistSession: false } }
   );
 }
