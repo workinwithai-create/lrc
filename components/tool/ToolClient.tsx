@@ -2,6 +2,8 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
 
 type Props = {
   user: any;
@@ -32,12 +34,23 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
     audioFile && (mode === 'strict' || lyrics.trim().length > 10);
 
   function handleFile(file: File) {
-    if (file.size > 25 * 1024 * 1024) {
+    if (file.size > MAX_AUDIO_BYTES) {
       setError('File too large — max 25MB');
       return;
     }
     setAudioFile(file);
     setError('');
+  }
+
+  async function readResponseJson(res: Response) {
+    const text = await res.text();
+    if (!text) return {};
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(text || `Server error ${res.status}`);
+    }
   }
 
   async function generate() {
@@ -50,8 +63,36 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
     setStatusMsg('Uploading audio...');
 
     try {
+      const tokenRes = await fetch('/api/audio-upload-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: audioFile.name,
+          contentType: audioFile.type || 'audio/mpeg',
+          size: audioFile.size,
+        }),
+      });
+
+      const tokenData = await readResponseJson(tokenRes);
+      if (!tokenRes.ok) {
+        throw new Error(tokenData.error || `Upload setup failed (${tokenRes.status})`);
+      }
+
+      const supabase = createClient();
+      const { error: uploadError } = await supabase.storage
+        .from(AUDIO_UPLOAD_BUCKET)
+        .uploadToSignedUrl(tokenData.path, tokenData.token, audioFile, {
+          contentType: audioFile.type || 'audio/mpeg',
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message || 'Audio upload failed');
+      }
+
       const formData = new FormData();
-      formData.append('audio', audioFile);
+      formData.append('audioPath', tokenData.path);
+      formData.append('audioName', audioFile.name);
+      formData.append('audioType', audioFile.type || 'audio/mpeg');
       formData.append('lyrics', lyrics);
       formData.append('mode', mode);
       formData.append('title', songTitle || 'Untitled');
@@ -69,7 +110,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
       setStatusMsg('Aligning lyrics...');
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await readResponseJson(res);
         if (data.code === 'NO_CREDITS') {
           window.location.href = '/pricing';
           return;
@@ -77,7 +118,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
         throw new Error(data.error || `Server error ${res.status}`);
       }
 
-      const data = await res.json();
+      const data = await readResponseJson(res);
       setProgress(100);
       setStatusMsg('Done!');
       setResult({

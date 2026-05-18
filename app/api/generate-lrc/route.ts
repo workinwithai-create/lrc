@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdmin } from '@/lib/supabase/server';
+import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -50,16 +51,19 @@ export async function POST(req: NextRequest) {
     // --- PARSE FORM ---
     const formData = await req.formData();
     const audioFile = formData.get('audio') as File | null;
+    const audioPath = (formData.get('audioPath') as string) || '';
+    const audioName = (formData.get('audioName') as string) || 'audio';
+    const audioType = (formData.get('audioType') as string) || 'audio/mpeg';
     const lyricsRaw = (formData.get('lyrics') as string) || '';
     const mode = (formData.get('mode') as string) || 'smart';
     const title = (formData.get('title') as string) || 'Untitled';
     const artist = (formData.get('artist') as string) || 'Unknown Artist';
 
-    if (!audioFile) {
+    if (!audioFile && !audioPath) {
       return NextResponse.json({ error: 'No audio file provided' }, { status: 400 });
     }
 
-    if (audioFile.size > 25 * 1024 * 1024) {
+    if (audioFile && audioFile.size > MAX_AUDIO_BYTES) {
       return NextResponse.json({ error: 'Audio file exceeds 25MB limit' }, { status: 413 });
     }
 
@@ -70,9 +74,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Buffer audio once — shared between Whisper and Deepgram
-    const audioBuffer = await audioFile.arrayBuffer();
-    const audioForWhisper = new File([audioBuffer], audioFile.name, { type: audioFile.type });
+    // Buffer audio once - shared between Whisper and Deepgram.
+    const { audioBuffer, fileName, mimeType } = audioFile
+      ? {
+          audioBuffer: await audioFile.arrayBuffer(),
+          fileName: audioFile.name,
+          mimeType: audioFile.type || 'audio/mpeg',
+        }
+      : await getUploadedAudio(audioPath, user.id, audioName, audioType);
+
+    if (audioBuffer.byteLength > MAX_AUDIO_BYTES) {
+      return NextResponse.json({ error: 'Audio file exceeds 25MB limit' }, { status: 413 });
+    }
+
+    const audioForWhisper = new File([audioBuffer], fileName, { type: mimeType });
 
     // --- TRANSCRIBE: Whisper + Deepgram in parallel ---
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -84,7 +99,7 @@ export async function POST(req: NextRequest) {
         response_format: 'verbose_json',
         timestamp_granularities: ['word'],
       }),
-      transcribeWithDeepgram(audioBuffer, audioFile.type),
+      transcribeWithDeepgram(audioBuffer, mimeType),
     ]);
 
     const whisperWords: WhisperWord[] = whisperResult.words || [];
@@ -177,6 +192,35 @@ export async function POST(req: NextRequest) {
 }
 
 // ---------- Deepgram ----------
+
+async function getUploadedAudio(
+  audioPath: string,
+  userId: string,
+  fallbackName: string,
+  fallbackType: string
+) {
+  if (!audioPath.startsWith(`${userId}/`)) {
+    throw new Error('Invalid audio upload path');
+  }
+
+  const admin = createAdmin();
+  const { data, error } = await admin.storage
+    .from(AUDIO_UPLOAD_BUCKET)
+    .download(audioPath);
+
+  if (error || !data) {
+    throw new Error(error?.message || 'Could not read uploaded audio');
+  }
+
+  const audioBuffer = await data.arrayBuffer();
+  await admin.storage.from(AUDIO_UPLOAD_BUCKET).remove([audioPath]);
+
+  return {
+    audioBuffer,
+    fileName: fallbackName || audioPath.split('/').pop() || 'audio',
+    mimeType: data.type || fallbackType || 'audio/mpeg',
+  };
+}
 
 async function transcribeWithDeepgram(audioBuffer: ArrayBuffer, mimeType: string): Promise<DeepgramWord[]> {
   if (!process.env.DEEPGRAM_API_KEY) return [];
