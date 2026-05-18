@@ -8,7 +8,7 @@ export default async function DashboardPage({
 }: {
   searchParams: { payment?: string };
 }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
@@ -26,8 +26,8 @@ export default async function DashboardPage({
 
   const totalCredits =
     (profile?.subscription_status === 'active'
-      ? profile.monthly_quota_remaining
-      : 0) + (profile?.credits || 0);
+      ? (profile?.monthly_quota_remaining ?? 0)
+      : 0) + (profile?.credits ?? 0);
 
   return (
     <DashboardClient

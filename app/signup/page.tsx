@@ -19,7 +19,7 @@ function SignupForm() {
     setLoading(true);
     setError('');
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
