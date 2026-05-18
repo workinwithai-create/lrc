@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -66,6 +66,7 @@ export async function POST(req: Request) {
       signedUrl: data.signedUrl,
     });
   } catch (err: any) {
+    console.error('Audio upload token error:', err);
     return NextResponse.json(
       { error: err.message || 'Could not prepare audio upload' },
       { status: 500 }
