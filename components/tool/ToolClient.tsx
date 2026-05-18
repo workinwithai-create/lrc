@@ -17,6 +17,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
   const [artistName, setArtistName] = useState('');
   const [lyrics, setLyrics] = useState('');
   const [mode, setMode] = useState<'smart' | 'strict'>('smart');
+  const [offsetSeconds, setOffsetSeconds] = useState(0);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
   const [statusMsg, setStatusMsg] = useState('');
   const [progress, setProgress] = useState(0);
@@ -97,6 +98,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
       formData.append('mode', mode);
       formData.append('title', songTitle || 'Untitled');
       formData.append('artist', artistName || 'Mark Parsons Jr.');
+      formData.append('offset', String(offsetSeconds));
 
       setProgress(35);
       setStatusMsg('Whisper is listening to every word...');
@@ -164,6 +166,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
     setStatus('idle');
     setProgress(0);
     setError('');
+    setOffsetSeconds(0);
   }
 
   return (
@@ -210,6 +213,28 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
             {mode === 'smart'
               ? 'Paste your lyrics — the output keeps your exact lines with Whisper timing. Use this for Smule.'
               : "No lyrics needed. Whisper transcribes and groups by pauses. Output won't match your lyric lines."}
+          </div>
+
+          {/* Timing offset */}
+          <div className="bg-paper border-2 border-ink hard-shadow px-5 py-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] tracking-widest uppercase">Timing Offset</span>
+              <span className="font-mono text-sm font-bold">
+                {offsetSeconds === 0 ? '0.0 s' : offsetSeconds > 0 ? `−${offsetSeconds.toFixed(1)} s` : `+${Math.abs(offsetSeconds).toFixed(1)} s`}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={-3}
+              max={5}
+              step={0.5}
+              value={offsetSeconds}
+              onChange={(e) => setOffsetSeconds(parseFloat(e.target.value))}
+              className="w-full accent-blood"
+            />
+            <div className="font-serif italic text-xs text-mute">
+              If lyrics appear <strong>late</strong>, drag right. If they appear <strong>early</strong>, drag left.
+            </div>
           </div>
 
           {/* Audio upload */}

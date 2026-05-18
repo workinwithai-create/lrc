@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
     const mode = (formData.get('mode') as string) || 'smart';
     const title = (formData.get('title') as string) || 'Untitled';
     const artist = (formData.get('artist') as string) || 'Unknown Artist';
+    const offsetSeconds = parseFloat((formData.get('offset') as string) || '0') || 0;
 
     if (!audioFile && !audioPath) {
       return NextResponse.json({ error: 'No audio file provided' }, { status: 400 });
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
     }
 
     const duration = whisperResult.duration || getLastWordEnd(mergedWords);
-    const lrcContent = buildLRC({ title, artist, durationSec: duration, lines: timedLines });
+    const lrcContent = buildLRC({ title, artist, durationSec: duration, lines: timedLines, offsetSeconds });
 
     // --- DECREMENT QUOTA (skip for admin) ---
     if (!isAdmin) {
@@ -469,11 +470,13 @@ function buildLRC({
   artist,
   durationSec,
   lines,
+  offsetSeconds = 0,
 }: {
   title: string;
   artist: string;
   durationSec: number;
   lines: TimedLine[];
+  offsetSeconds?: number;
 }): string {
   let lrc = '';
   lrc += `[ti:${title}]\n`;
@@ -481,7 +484,8 @@ function buildLRC({
   lrc += `[length:${formatDuration(durationSec)}]\n`;
   lrc += `[tool:LRC Forge]\n\n`;
   for (const item of lines) {
-    lrc += `${toTimestamp(item.seconds)}${item.line}\n`;
+    const adjusted = Math.max(0, item.seconds - offsetSeconds);
+    lrc += `${toTimestamp(adjusted)}${item.line}\n`;
   }
   return lrc;
 }
