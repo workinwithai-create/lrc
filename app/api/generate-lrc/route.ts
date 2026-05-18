@@ -385,14 +385,60 @@ function alignLyricsToWords(userLines: string[], words: WhisperWord[]): TimedLin
     }
   }
 
-  // Derive line timestamps: first aligned Whisper word for each lyric line
+  // Pre-compute each lyric word's position within its own line.
+  // Used to extrapolate backward when the first matched word is mid-line.
+  const lyricWordPos: number[] = [];
+  {
+    const seenPerLine = new Map<number, number>();
+    for (let k = 0; k < N; k++) {
+      const lineIdx = lyricWords[k].lineIdx;
+      const pos = seenPerLine.get(lineIdx) ?? 0;
+      lyricWordPos.push(pos);
+      seenPerLine.set(lineIdx, pos + 1);
+    }
+  }
+
+  // Average Whisper word duration — used to step back from a mid-line anchor.
+  const avgWordDuration = M > 0 ? totalDuration / M : 0.4;
+
+  // Derive line timestamps.
+  // For each line, use the first matched word. If that word is the Nth word in the
+  // line (not the first), extrapolate backward by N * avgWordDuration * 0.8 to
+  // estimate where the line actually starts. The 0.8 factor is conservative to avoid
+  // overshooting into the previous line. Also skip anchoring on a single common word
+  // (score ≤ 0.5) when the match is very weak — let interpolation handle it instead.
   const lineTimestamps = new Map<number, number>();
+  const lineAnchorScores = new Map<number, number>();
   for (let k = 0; k < N; k++) {
     const wi = lyricToWhisper.get(k);
     if (wi === undefined) continue;
     const lineIdx = lyricWords[k].lineIdx;
+    const posInLine = lyricWordPos[k];
+    const score = matchScore(lyricWords[k].word, whisperNorm[wi].norm);
+
     if (!lineTimestamps.has(lineIdx)) {
+      // First match for this line — anchor it (possibly extrapolating back).
+      const rawTime = words[wi].start;
+      const lineStart = Math.max(0, rawTime - posInLine * avgWordDuration * 0.8);
+      lineTimestamps.set(lineIdx, lineStart);
+      lineAnchorScores.set(lineIdx, score);
+    } else if (posInLine === 0 && score > (lineAnchorScores.get(lineIdx) ?? -1) + 0.5) {
+      // A stronger match on the very first word of the line — upgrade the anchor.
       lineTimestamps.set(lineIdx, words[wi].start);
+      lineAnchorScores.set(lineIdx, score);
+    }
+  }
+
+  // Remove suspiciously weak single-word anchors for lines that have only common-word
+  // matches (score ≤ 0.5). These lines are better served by interpolation.
+  for (const [lineIdx, score] of lineAnchorScores) {
+    if (score <= 0.5) {
+      // Count how many matched words this line has — if only one weak match, drop it.
+      let matchCount = 0;
+      for (let k = 0; k < N; k++) {
+        if (lyricWords[k].lineIdx === lineIdx && lyricToWhisper.has(k)) matchCount++;
+      }
+      if (matchCount <= 1) lineTimestamps.delete(lineIdx);
     }
   }
 
