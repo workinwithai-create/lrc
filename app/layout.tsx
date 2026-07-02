@@ -1,5 +1,9 @@
 import type { Metadata } from 'next';
+import '../brand/brand.css';
 import './globals.css';
+import { fontClasses } from '../brand/fonts';
+import WWANav from '../brand/components/WWANav';
+import WWAFooter from '../brand/components/WWAFooter';
 
 export const metadata: Metadata = {
   title: 'LRC Forge — Whisper-powered lyric timing',
@@ -24,7 +28,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={fontClasses}>
+        <WWANav currentApp="LRC Forge" />
+        {children}
+        <WWAFooter />
+      </body>
     </html>
   );
 }

@@ -1,9 +1,14 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  // Brand preset adds walnut/copper/cream palette + label/body font stacks.
+  // LRC's own extend below still wins on display/serif/mono — no visual change
+  // to existing screens.
+  presets: [require('./brand/tailwind.preset.js')],
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './brand/components/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {

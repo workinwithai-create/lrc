@@ -1,0 +1,191 @@
+/* ==========================================================
+   WorkinWithAI brand tokens · v1
+   AI tools for independent hustlers.
+   These values are law — do not retune per app.
+   ========================================================== */
+:root {
+  /* ground */
+  --wwa-walnut-deep: #1A120C;
+  --wwa-walnut:      #241811;
+  --wwa-walnut-raised:#2E2016;
+  --wwa-walnut-edge: #3D2B1D;
+  /* metal */
+  --wwa-copper:      #B87333;   /* pipe */
+  --wwa-copper-hi:   #E8B870;   /* polished */
+  /* paper & ink */
+  --wwa-text:        #EFE3D0;
+  --wwa-text-dim:    #B9A88F;
+  --wwa-ink-faint:   #7A6A55;
+  /* accents */
+  --wwa-patina:      #5E8C7B;
+  --wwa-danger:      #C4573B;
+}
+
+/* ---- minimal base ---- */
+::selection {
+  background: var(--wwa-copper);
+  color: var(--wwa-walnut-deep);
+}
+
+:focus-visible {
+  outline: 2px solid var(--wwa-copper-hi);
+  outline-offset: 2px;
+}
+
+/* ==========================================================
+   Shared Nav — .wwa-* classes so these work with or
+   without Tailwind (static sites use the same markup).
+   ========================================================== */
+.wwa-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--wwa-walnut-deep);
+  border-bottom: 1px solid var(--wwa-walnut-edge);
+}
+
+.wwa-nav__wordmark {
+  font-family: var(--font-bebas, 'Bebas Neue'), sans-serif;
+  font-size: 1.5rem;
+  letter-spacing: 0.06em;
+  color: var(--wwa-copper);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.wwa-nav__wordmark:hover { color: var(--wwa-copper-hi); }
+
+.wwa-nav__right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.wwa-nav__app {
+  font-family: var(--font-oswald, 'Oswald'), sans-serif;
+  font-weight: 500;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--wwa-text);
+}
+
+.wwa-nav__tools {
+  position: relative;
+}
+
+.wwa-nav__tools-btn {
+  font-family: var(--font-oswald, 'Oswald'), sans-serif;
+  font-weight: 500;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--wwa-text-dim);
+  background: none;
+  border: 1px solid var(--wwa-walnut-edge);
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+.wwa-nav__tools-btn:hover {
+  color: var(--wwa-copper-hi);
+  border-color: var(--wwa-copper);
+}
+
+.wwa-nav__menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  min-width: 200px;
+  background: var(--wwa-walnut-raised);
+  border: 1px solid var(--wwa-walnut-edge);
+  border-radius: 6px;
+  padding: 0.4rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.wwa-nav__menu a {
+  display: block;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-family: var(--font-oswald, 'Oswald'), sans-serif;
+  font-weight: 400;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--wwa-text);
+  text-decoration: none;
+}
+
+.wwa-nav__menu a:hover {
+  background: var(--wwa-walnut-edge);
+  color: var(--wwa-copper-hi);
+}
+
+/* ==========================================================
+   Shared Footer
+   ========================================================== */
+.wwa-footer {
+  background: var(--wwa-walnut-deep);
+  border-top: 1px solid var(--wwa-walnut-edge);
+  padding: 3rem 1.25rem 2rem;
+}
+
+.wwa-footer__inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  justify-content: space-between;
+}
+
+.wwa-footer__wordmark {
+  font-family: var(--font-bebas, 'Bebas Neue'), sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.06em;
+  color: var(--wwa-copper);
+  text-decoration: none;
+}
+
+.wwa-footer__tagline {
+  font-family: var(--font-hanken, 'Hanken Grotesk'), sans-serif;
+  color: var(--wwa-text-dim);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.wwa-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wwa-footer__links a {
+  font-family: var(--font-oswald, 'Oswald'), sans-serif;
+  font-weight: 400;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--wwa-ink-faint);
+  text-decoration: none;
+}
+
+.wwa-footer__links a:hover { color: var(--wwa-copper-hi); }
+
+.wwa-footer__legal {
+  width: 100%;
+  margin-top: 1.5rem;
+  font-family: var(--font-hanken, 'Hanken Grotesk'), sans-serif;
+  font-size: 0.75rem;
+  color: var(--wwa-ink-faint);
+}
