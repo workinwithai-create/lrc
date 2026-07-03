@@ -1,6 +1,13 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+// Production serves lrc.workinwithai.com — scope the session cookie to the
+// apex there so the login is shared family-wide. Previews/dev stay host-only.
+const sharedCookieOptions =
+  process.env.VERCEL_ENV === 'production'
+    ? { domain: '.workinwithai.com', sameSite: 'lax' as const, secure: true }
+    : undefined;
+
 export async function createClient() {
   const cookieStore = await cookies();
 
@@ -8,6 +15,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: sharedCookieOptions,
       cookies: {
         getAll() {
           return cookieStore.getAll();

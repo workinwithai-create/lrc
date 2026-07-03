@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient, createAdmin } from '@/lib/supabase/server';
+import { hasLrcEntitlement } from '@/lib/entitlements';
 import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
 
 export const runtime = 'nodejs';
@@ -33,11 +34,13 @@ export async function POST(req: NextRequest) {
     }
 
     const isAdmin = profile.is_admin === true;
+    // Phase 2: entitlement (lrc or Forge Pass) grants unmetered access.
+    const entitled = await hasLrcEntitlement(supabase);
     const hasActiveSub = profile.subscription_status === 'active';
     const hasMonthlyQuota = hasActiveSub && profile.monthly_quota_remaining > 0;
     const hasCredits = profile.credits > 0;
 
-    if (!isAdmin && !hasMonthlyQuota && !hasCredits) {
+    if (!isAdmin && !entitled && !hasMonthlyQuota && !hasCredits) {
       return NextResponse.json(
         {
           error: 'Out of credits',
@@ -127,7 +130,7 @@ export async function POST(req: NextRequest) {
     const lrcContent = buildLRC({ title, artist, durationSec: duration, lines: timedLines, offsetSeconds });
 
     // --- DECREMENT QUOTA (skip for admin) ---
-    if (!isAdmin) {
+    if (!isAdmin && !entitled) {
       if (hasMonthlyQuota) {
         await supabase
           .from('profiles')
@@ -166,7 +169,7 @@ export async function POST(req: NextRequest) {
       cost_cents: Math.ceil((duration / 60) * 0.6),
     });
 
-    const creditsRemaining = isAdmin
+    const creditsRemaining = isAdmin || entitled
       ? null  // null = unlimited
       : hasMonthlyQuota
         ? profile.monthly_quota_remaining - 1

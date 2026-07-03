@@ -1,37 +1,16 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
+// Phase 2: billing consolidated onto the WorkinWithAI hub (one Stripe
+// account, one customer per user). This page hands off instead of checking out.
+const HUB_PRICING = 'https://workinwithai.com/#pricing';
+
 function PricingContent() {
-  const [loading, setLoading] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const canceled = searchParams.get('payment') === 'cancel';
-
-  async function handleCheckout(plan: 'monthly' | 'pack') {
-    setLoading(plan);
-    try {
-      const res = await fetch('/api/stripe-checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
-      });
-      const data = await res.json();
-      if (res.status === 401) {
-        window.location.href = `/login?redirect=/pricing&plan=${plan}`;
-        return;
-      }
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        throw new Error(data.error || 'Checkout failed');
-      }
-    } catch (err: any) {
-      alert(err.message);
-      setLoading(null);
-    }
-  }
 
   return (
     <main className="min-h-screen">
@@ -56,63 +35,57 @@ function PricingContent() {
             // Pricing
           </div>
           <h1 className="font-display text-6xl md:text-8xl uppercase tracking-tight leading-none">
-            Choose a plan.
+            One account. Every tool.
           </h1>
           <p className="font-serif italic text-xl text-mute mt-4">
-            Cancel or swap anytime.
+            LRC Forge now runs on your WorkinWithAI account.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Pack */}
+        <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
           <div className="border-2 border-ink p-8 hard-shadow bg-paper">
-            <div className="font-mono text-xs tracking-widest uppercase text-mute">One-time</div>
-            <div className="font-display text-4xl uppercase mt-1">Song Pack</div>
+            <div className="font-mono text-xs tracking-widest uppercase text-mute">Subscription</div>
+            <div className="font-display text-4xl uppercase mt-1">LRC Forge</div>
             <div className="flex items-baseline gap-2 mt-6">
-              <span className="font-display text-7xl">$10</span>
-              <span className="font-serif italic text-mute">/ 20 songs</span>
+              <span className="font-display text-7xl">$9</span>
+              <span className="font-serif italic text-mute">/ month</span>
             </div>
-            <div className="font-mono text-xs text-mute mt-1">50¢ per song · never expires</div>
+            <div className="font-mono text-xs text-mute mt-1">unlimited songs · cancel anytime</div>
             <ul className="mt-8 space-y-3 font-serif text-lg">
-              <li><span className="text-blood font-bold">→</span> 20 .lrc generations</li>
+              <li><span className="text-blood font-bold">→</span> Unlimited .lrc generations</li>
               <li><span className="text-blood font-bold">→</span> Smart or Strict mode</li>
-              <li><span className="text-blood font-bold">→</span> No subscription</li>
-              <li><span className="text-blood font-bold">→</span> Credits never expire</li>
+              <li><span className="text-blood font-bold">→</span> One login across every Forge tool</li>
             </ul>
-            <button
-              onClick={() => handleCheckout('pack')}
-              disabled={loading !== null}
-              className="mt-8 w-full bg-ink text-paper py-4 font-display text-xl tracking-wider uppercase hover:bg-blood disabled:opacity-50 transition-colors"
+            <a
+              href={HUB_PRICING}
+              className="mt-8 block w-full bg-ink text-paper py-4 font-display text-xl tracking-wider uppercase hover:bg-blood transition-colors text-center"
             >
-              {loading === 'pack' ? 'Loading...' : 'Buy Pack →'}
-            </button>
+              Get it on WorkinWithAI →
+            </a>
           </div>
 
-          {/* Monthly */}
           <div className="border-2 border-ink p-8 hard-shadow-blood bg-paper relative">
             <div className="absolute -top-3 left-4 bg-blood text-paper px-3 py-1 font-mono text-[10px] tracking-widest uppercase">
               Best Value
             </div>
-            <div className="font-mono text-xs tracking-widest uppercase text-mute">Subscription</div>
-            <div className="font-display text-4xl uppercase mt-1">Monthly</div>
+            <div className="font-mono text-xs tracking-widest uppercase text-mute">Everything</div>
+            <div className="font-display text-4xl uppercase mt-1">The Forge Pass</div>
             <div className="flex items-baseline gap-2 mt-6">
-              <span className="font-display text-7xl">$5</span>
+              <span className="font-display text-7xl">$24</span>
               <span className="font-serif italic text-mute">/ month</span>
             </div>
-            <div className="font-mono text-xs text-mute mt-1">20¢ per song · cancel anytime</div>
+            <div className="font-mono text-xs text-mute mt-1">all five Forge tools · one bill</div>
             <ul className="mt-8 space-y-3 font-serif text-lg">
-              <li><span className="text-blood font-bold">→</span> 25 songs per month</li>
-              <li><span className="text-blood font-bold">→</span> Smart or Strict mode</li>
-              <li><span className="text-blood font-bold">→</span> Priority processing</li>
-              <li><span className="text-blood font-bold">→</span> Early access to new tools</li>
+              <li><span className="text-blood font-bold">→</span> LRC Forge included</li>
+              <li><span className="text-blood font-bold">→</span> Record → polish → master → release → present</li>
+              <li><span className="text-blood font-bold">→</span> New Forge tools as they ship</li>
             </ul>
-            <button
-              onClick={() => handleCheckout('monthly')}
-              disabled={loading !== null}
-              className="mt-8 w-full bg-blood text-paper py-4 font-display text-xl tracking-wider uppercase hover:bg-ink disabled:opacity-50 transition-colors"
+            <a
+              href={HUB_PRICING}
+              className="mt-8 block w-full bg-blood text-paper py-4 font-display text-xl tracking-wider uppercase hover:bg-ink transition-colors text-center"
             >
-              {loading === 'monthly' ? 'Loading...' : 'Subscribe →'}
-            </button>
+              Get the Forge Pass →
+            </a>
           </div>
         </div>
       </section>
