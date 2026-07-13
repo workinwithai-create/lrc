@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient, createAdmin } from '@/lib/supabase/server';
 import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
+import { stripe } from '@/lib/stripe/stripe';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -10,6 +11,34 @@ export const dynamic = 'force-dynamic';
 type WhisperWord = { word: string; start: number; end: number };
 type DeepgramWord = { word: string; start: number; end: number; confidence: number };
 type TimedLine = { line: string; seconds: number };
+
+const FORGE_PASS_LOOKUP_KEYS = new Set(['forge-pass-monthly', 'forge-pass-plus-haul']);
+
+async function hasActiveForgePass(customerId?: string | null, email?: string | null) {
+  try {
+    const customerIds = new Set<string>();
+    if (customerId) customerIds.add(customerId);
+    if (email) {
+      const customers = await stripe.customers.list({ email, limit: 10 });
+      customers.data.forEach((customer) => customerIds.add(customer.id));
+    }
+
+    for (const id of customerIds) {
+      const subscriptions = await stripe.subscriptions.list({ customer: id, status: 'all', limit: 100 });
+      const activeForgePass = subscriptions.data.some((subscription) => {
+        if (subscription.status !== 'active' && subscription.status !== 'trialing') return false;
+        return subscription.items.data.some((item) => {
+          const lookupKey = item.price.lookup_key || '';
+          return FORGE_PASS_LOOKUP_KEYS.has(lookupKey);
+        });
+      });
+      if (activeForgePass) return true;
+    }
+  } catch (error) {
+    console.warn('Forge Pass verification failed:', error);
+  }
+  return false;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,8 +65,11 @@ export async function POST(req: NextRequest) {
     const hasActiveSub = profile.subscription_status === 'active';
     const hasMonthlyQuota = hasActiveSub && profile.monthly_quota_remaining > 0;
     const hasCredits = profile.credits > 0;
+    const hasForgePass = !isAdmin && !hasMonthlyQuota && !hasCredits
+      ? await hasActiveForgePass(profile.stripe_customer_id, user.email)
+      : false;
 
-    if (!isAdmin && !hasMonthlyQuota && !hasCredits) {
+    if (!isAdmin && !hasMonthlyQuota && !hasCredits && !hasForgePass) {
       return NextResponse.json(
         {
           error: 'Out of credits',
@@ -133,12 +165,13 @@ export async function POST(req: NextRequest) {
           .from('profiles')
           .update({ monthly_quota_remaining: profile.monthly_quota_remaining - 1 })
           .eq('id', user.id);
-      } else {
+      } else if (hasCredits) {
         await supabase
           .from('profiles')
           .update({ credits: profile.credits - 1 })
           .eq('id', user.id);
       }
+      // Forge Pass usage is included and is tracked in usage_log below.
     }
 
     // --- SAVE SONG ---
@@ -170,7 +203,9 @@ export async function POST(req: NextRequest) {
       ? null  // null = unlimited
       : hasMonthlyQuota
         ? profile.monthly_quota_remaining - 1
-        : profile.credits - 1;
+        : hasCredits
+          ? profile.credits - 1
+          : null;
 
     return NextResponse.json({
       success: true,
