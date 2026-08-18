@@ -1,7 +1,7 @@
-import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import DashboardClient from '@/components/tool/DashboardClient';
+import { remainingCredits } from '@/lib/owner-access';
 
 export default async function DashboardPage({
   searchParams,
@@ -24,10 +24,7 @@ export default async function DashboardPage({
     .order('created_at', { ascending: false })
     .limit(20);
 
-  const totalCredits =
-    (profile?.subscription_status === 'active'
-      ? (profile?.monthly_quota_remaining ?? 0)
-      : 0) + (profile?.credits ?? 0);
+  const totalCredits = remainingCredits(profile, user.email);
 
   return (
     <DashboardClient

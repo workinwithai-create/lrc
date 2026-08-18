@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient, createAdmin } from '@/lib/supabase/server';
 import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
+import { hasUnlimitedAccess } from '@/lib/owner-access';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const isAdmin = profile.is_admin === true;
+    const isAdmin = hasUnlimitedAccess(profile, user.email);
     const hasActiveSub = profile.subscription_status === 'active';
     const hasMonthlyQuota = hasActiveSub && profile.monthly_quota_remaining > 0;
     const hasCredits = profile.credits > 0;

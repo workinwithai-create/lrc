@@ -7,11 +7,11 @@ import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
 
 type Props = {
   user: any;
-  totalCredits: number;
+  totalCredits: number | null;
 };
 
 export default function ToolClient({ user, totalCredits: initialCredits }: Props) {
-  const [credits, setCredits] = useState(initialCredits);
+  const [credits, setCredits] = useState<number | null>(initialCredits);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [songTitle, setSongTitle] = useState('');
   const [artistName, setArtistName] = useState('');
@@ -176,7 +176,10 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
           ← Dashboard
         </Link>
         <div className="font-mono text-xs tracking-widest uppercase">
-          Credits: <span className="text-blood font-bold">{credits}</span>
+          Credits:{' '}
+          <span className="text-blood font-bold">
+            {credits === null ? 'Unlimited' : credits}
+          </span>
         </div>
       </nav>
 

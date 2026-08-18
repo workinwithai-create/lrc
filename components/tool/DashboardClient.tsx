@@ -9,7 +9,7 @@ type Props = {
   user: any;
   profile: any;
   songs: any[];
-  totalCredits: number;
+  totalCredits: number | null;
   paymentSuccess?: boolean;
 };
 
@@ -23,6 +23,7 @@ export default function DashboardClient({
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const isSubscribed = profile?.subscription_status === 'active';
+  const unlimited = totalCredits === null;
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -78,11 +79,15 @@ export default function DashboardClient({
             <div className="font-mono text-[10px] tracking-widest uppercase text-gold">
               // Credits
             </div>
-            <div className="font-display text-6xl mt-2">{totalCredits}</div>
+            <div className="font-display text-6xl mt-2">
+              {unlimited ? '∞' : totalCredits}
+            </div>
             <div className="font-serif italic text-sm text-paper/70 mt-1">
-              {isSubscribed
-                ? `${profile.monthly_quota_remaining} subscription + ${profile.credits} bonus`
-                : 'songs available'}
+              {unlimited
+                ? 'unlimited access'
+                : isSubscribed
+                  ? `${profile.monthly_quota_remaining} subscription + ${profile.credits} bonus`
+                  : 'songs available'}
             </div>
           </div>
 
@@ -91,14 +96,22 @@ export default function DashboardClient({
               // Plan
             </div>
             <div className="font-display text-3xl mt-2 uppercase">
-              {isSubscribed ? 'Monthly' : profile?.credits > 0 ? 'Pay-as-you-go' : 'Free'}
+              {unlimited
+                ? 'Owner'
+                : isSubscribed
+                  ? 'Monthly'
+                  : profile?.credits > 0
+                    ? 'Pay-as-you-go'
+                    : 'Free'}
             </div>
             <div className="font-serif italic text-sm text-mute mt-1">
-              {isSubscribed
-                ? `Renews ${profile.subscription_ends_at ? new Date(profile.subscription_ends_at).toLocaleDateString() : 'soon'}`
-                : profile?.credits > 0
-                ? `${profile.credits} credits remaining`
-                : 'Subscribe or buy a pack'}
+              {unlimited
+                ? 'No subscription or credits required'
+                : isSubscribed
+                  ? `Renews ${profile.subscription_ends_at ? new Date(profile.subscription_ends_at).toLocaleDateString() : 'soon'}`
+                  : profile?.credits > 0
+                    ? `${profile.credits} credits remaining`
+                    : 'Subscribe or buy a pack'}
             </div>
           </div>
 
@@ -113,7 +126,7 @@ export default function DashboardClient({
 
         {/* Quick action */}
         <div className="mb-10">
-          {totalCredits > 0 ? (
+          {unlimited || (totalCredits ?? 0) > 0 ? (
             <Link
               href="/tool"
               className="block bg-blood text-paper p-8 hard-shadow text-center hover:translate-x-1 hover:translate-y-1 transition-transform"
