@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import ToolClient from '@/components/tool/ToolClient';
+import { remainingCredits } from '@/lib/owner-access';
 
 export default async function ToolPage() {
   const supabase = await createClient();
@@ -13,12 +14,9 @@ export default async function ToolPage() {
     .eq('id', user.id)
     .single();
 
-  const totalCredits =
-    (profile?.subscription_status === 'active'
-      ? profile.monthly_quota_remaining
-      : 0) + (profile?.credits || 0);
+  const totalCredits = remainingCredits(profile, user.email);
 
-  if (totalCredits <= 0) {
+  if (totalCredits !== null && totalCredits <= 0) {
     redirect('/pricing');
   }
 
