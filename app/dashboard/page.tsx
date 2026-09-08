@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import DashboardClient from '@/components/tool/DashboardClient';
-import { remainingCredits } from '@/lib/owner-access';
 
 export default async function DashboardPage({
   searchParams,
@@ -24,14 +23,12 @@ export default async function DashboardPage({
     .order('created_at', { ascending: false })
     .limit(20);
 
-  const totalCredits = remainingCredits(profile, user.email);
-
   return (
     <DashboardClient
       user={user}
       profile={profile}
       songs={songs || []}
-      totalCredits={totalCredits}
+      totalCredits={null}
       paymentSuccess={searchParams.payment === 'success'}
     />
   );
