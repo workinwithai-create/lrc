@@ -11,6 +11,7 @@ import {
 
 const PROTECTED_PAGES = ['/dashboard', '/tool'];
 const PUBLIC_API_PREFIXES = ['/api/stripe-webhook', '/api/waitlist'];
+type CookieUpdate = { name: string; value: string; options?: any };
 
 function copyCookies(target: NextResponse, source: NextResponse) {
   source.cookies.getAll().forEach((cookie) => target.cookies.set(cookie));
@@ -49,7 +50,7 @@ export async function updateSession(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookieUpdate[]) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(
@@ -110,7 +111,7 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: CookieUpdate[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
