@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import { WWA_SUPABASE_ANON_KEY, WWA_SUPABASE_URL } from './wwa-auth';
 
+type CookieUpdate = { name: string; value: string; options?: any };
+
 export async function createWwaServerClient() {
   const cookieStore = await cookies();
   const headerStore = await headers();
@@ -13,7 +15,7 @@ export async function createWwaServerClient() {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookieUpdate[]) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(
