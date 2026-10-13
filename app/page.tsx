@@ -54,21 +54,23 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="md:col-span-4 md:mt-20">
-            <div className="bg-ink text-paper p-6 hard-shadow-blood">
-              <div className="font-mono text-[10px] tracking-widest text-gold uppercase mb-3">
-                // Sample Output
+          <div className="md:col-span-4 md:mt-14">
+            <div className="border-2 border-ink hard-shadow-blood bg-ink p-2 rotate-[1deg]">
+              <div className="text-gold font-mono text-[10px] uppercase tracking-widest px-2 py-3">Live notebook · artist's page</div>
+              <div className="handwriting-paper" style={{ minHeight: 340, maxHeight: 340, overflow: 'hidden' }}>
+                <div className="handwriting-paper-content" style={{ paddingTop: 25 }}>
+                  <div className="handwriting-title">Coal Cover</div>
+                  <div className="handwriting-byline">Mark Parsons Jr.</div>
+                  <div className="handwriting-line">I was born in the dust</div>
+                  <div className="handwriting-line">Where the coal dust falls</div>
+                  <div className="handwriting-line">Through the cracks in the walls</div>
+                  <div className="handwriting-line" style={{ opacity: .28 }}>Of my daddy's house…</div>
+                  <div className="handwriting-signature" style={{ marginTop: 16 }}>ink in motion ✧</div>
+                </div>
               </div>
-              <pre className="font-mono text-xs leading-loose text-paper whitespace-pre-wrap">
-<span className="text-blood">[ti:Coal Cover]
-[ar:Mark Parsons Jr.]
-[length:03:42]</span>
-
-<span className="text-gold">[00:08.40]</span>I was born in the dust
-<span className="text-gold">[00:12.15]</span>Where the coal dust falls
-<span className="text-gold">[00:16.22]</span>Through the cracks in the walls
-<span className="text-gold">[00:20.85]</span>Of my daddy's house
-              </pre>
+              <div className="text-paper font-serif italic text-sm px-2 py-3">
+                Words appear stroke by stroke during playback.
+              </div>
             </div>
           </div>
         </div>
