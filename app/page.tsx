@@ -14,13 +14,13 @@ export default function LandingPage() {
         </div>
         <div className="flex gap-3 items-center">
           <Link href="/login" className="font-mono text-xs font-bold tracking-widest uppercase hover:text-blood">
-            Log in
+            Sign in
           </Link>
           <Link
-            href="/signup"
+            href="/tool"
             className="bg-ink text-paper px-4 py-2 font-display text-sm tracking-wider uppercase hover:bg-blood transition-colors"
           >
-            Start Free
+            Open Studio
           </Link>
         </div>
       </nav>
@@ -30,27 +30,26 @@ export default function LandingPage() {
         <div className="grid md:grid-cols-12 gap-8 items-start">
           <div className="md:col-span-8">
             <div className="font-serif italic text-xl text-blood mb-2">
-              An indie artist's lyric timing toolkit
+              A lyric notebook that comes alive with your music
             </div>
             <h1 className="font-display text-6xl md:text-8xl lg:text-9xl leading-[0.85] tracking-tight uppercase">
-              Lyrics,<br />
-              <span className="text-blood">Synced</span><br />
-              In Seconds.
+              Watch your<br />
+              <span className="text-blood">lyrics</span><br />
+              come alive.
             </h1>
             <p className="font-serif italic text-2xl mt-8 max-w-xl border-t-2 border-ink pt-6">
-              <span className="text-blood font-bold">—</span> Upload a song. Get a perfect, Whisper-powered <strong className="font-bold not-italic">.lrc</strong> file
-              ready for Smule, karaoke apps, or lyric videos.
+              <span className="text-blood font-bold">—</span> Upload a recording from your phone or computer. Automatically transcribe the words, sync each line, and watch the lyrics write themselves in a living notebook. Export the <strong className="font-bold not-italic">.lrc</strong> for INK or karaoke.
             </p>
 
             <div className="mt-10 flex flex-wrap gap-4 items-center">
               <Link
-                href="/signup"
+                href="/tool"
                 className="bg-blood text-paper px-8 py-5 font-display text-2xl tracking-wider uppercase hard-shadow hover:translate-x-1 hover:translate-y-1 transition-transform inline-block"
               >
-                Try It Free →
+                Open the lyric studio →
               </Link>
               <span className="font-mono text-xs text-mute">
-                1 free song · no credit card
+                iPhone Files supported · handwritten playback
               </span>
             </div>
           </div>
@@ -88,9 +87,9 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              { n: '01', title: 'Upload', desc: 'Drop your MP3, WAV, or M4A. Works right from your phone.' },
-              { n: '02', title: 'Transcribe', desc: "OpenAI Whisper listens to every word and captures exact timestamps." },
-              { n: '03', title: 'Forge', desc: 'Download a Smule-ready .lrc file. Or use your own lyrics for smart alignment.' },
+              { n: '01', title: 'Upload', desc: 'Choose an MP3, M4A or WAV from your iPhone Files or computer.' },
+              { n: '02', title: 'Synchronize', desc: "Whisper and Deepgram produce timestamps you can correct line by line." },
+              { n: '03', title: 'Handwritten Playback', desc: 'Watch each line write itself on vintage paper, then download .lrc for INK.' },
             ].map((step) => (
               <div key={step.n} className="border-2 border-paper p-6">
                 <div className="font-display text-7xl text-gold leading-none mb-4">{step.n}</div>
