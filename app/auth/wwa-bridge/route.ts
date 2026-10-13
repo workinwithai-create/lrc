@@ -75,9 +75,15 @@ export async function GET(request: NextRequest) {
   }
 
   const lrc = await createLrcClient();
-  const { data: { user: currentLrcUser } } = await lrc.auth.getUser();
+  let currentLrcUser: Awaited<ReturnType<typeof lrc.auth.getUser>>['data']['user'] = null;
+  try {
+    const existing = await lrc.auth.getUser();
+    currentLrcUser = existing.data.user;
+  } catch (error) {
+    console.warn('[WWA bridge] Stale local session replaced:', error instanceof Error ? error.message : 'expired session');
+  }
   if (currentLrcUser && currentLrcUser.id !== lrcUser.id) {
-    await lrc.auth.signOut({ scope: 'local' });
+    try { await lrc.auth.signOut({ scope: 'local' }); } catch { /* mint replacement session below */ }
   }
 
   if (!currentLrcUser || currentLrcUser.id !== lrcUser.id) {
