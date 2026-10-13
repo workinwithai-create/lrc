@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { parseLrc } from '@/lib/lrc-timing';
 
 type Props = { lrc: string; audioFile?: File | null; title?: string; artist?: string };
@@ -29,6 +29,16 @@ function HandPen() {
   );
 }
 
+const LetterStrokes = memo(function LetterStrokes({ text, visible, active }: { text: string; visible: number; active: boolean }) {
+  return <>
+    {Array.from(text).map((letter, j) => (
+      <span key={j} className={j < visible ? 'handwriting-letter-visible' : 'handwriting-letter-pending'} aria-hidden="true">
+        {letter}{active && j === visible - 1 && <HandPen />}
+      </span>
+    ))}
+  </>;
+});
+
 /** Audio-driven handwriting animation: playback time is the only clock, so seeking and pausing remain exact. */
 export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Props) {
   const parsed = useMemo(() => parseLrc(lrc), [lrc]);
@@ -43,6 +53,7 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
   const player = useRef<HTMLAudioElement>(null);
   const activeRow = useRef<HTMLDivElement>(null);
   const raf = useRef<number>(0);
+  const lastRendered = useRef(-1);
 
   const source = audioFile ?? localAudio;
 
@@ -56,7 +67,12 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
   useEffect(() => {
     if (!playing) return;
     const frame = () => {
-      setPlayhead(player.current?.currentTime ?? 0);
+      const t = player.current?.currentTime ?? 0;
+      // 15fps is enough for handwriting and prevents Safari re-rendering every letter on every video frame.
+      if (Math.abs(t - lastRendered.current) >= .065) {
+        lastRendered.current = t;
+        setPlayhead(t);
+      }
       raf.current = requestAnimationFrame(frame);
     };
     raf.current = requestAnimationFrame(frame);
@@ -129,22 +145,18 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
             const duration = Math.min(timeBudget * .9, Math.max(.8, entry.text.length * .065 / speed));
             const timeSinceStart = clock - entry.seconds;
             const fraction = Math.max(0, Math.min(1, timeSinceStart / duration));
-            const letters = Array.from(entry.text);
-            const visible = fraction >= 1 ? letters.length : Math.floor(fraction * letters.length);
+            const totalLetters = Array.from(entry.text).length;
+            const visible = fraction >= 1 ? totalLetters : Math.floor(fraction * totalLetters);
             const active = i === activeIndex && fraction < 1 && timeSinceStart >= 0;
             return (
               <div
                 key={i}
-                ref={active ? activeRow : undefined}
+                ref={i === activeIndex ? activeRow : undefined}
                 className={`handwriting-line ${isMarker ? 'handwriting-section' : ''}`}
                 aria-label={entry.text}
                 aria-live="off"
               >
-                {letters.map((letter, j) => (
-                  <span key={j} className={j < visible ? 'handwriting-letter-visible' : 'handwriting-letter-pending'} aria-hidden="true">
-                    {letter}{active && j === visible - 1 && <HandPen />}
-                  </span>
-                ))}
+                <LetterStrokes text={entry.text} visible={visible} active={active} />
               </div>
             );
           })}
