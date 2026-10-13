@@ -15,6 +15,8 @@ export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChang
   const [lines, setLines] = useState<LrcLine[]>(() => initial.lines);
   const [savedLrc, setSavedLrc] = useState(initialLrc);
   const [audioUrl, setAudioUrl] = useState('');
+  const [selectedAudio, setSelectedAudio] = useState<File | null>(null);
+  const previewFile = audioFile ?? selectedAudio;
   const [playhead, setPlayhead] = useState(0);
   const [status, setStatus] = useState('');
   const [saving, setSaving] = useState(false);
@@ -23,11 +25,11 @@ export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChang
   const dirty = currentLrc !== savedLrc;
 
   useEffect(() => {
-    if (!audioFile) { setAudioUrl(''); return; }
-    const objectUrl = URL.createObjectURL(audioFile);
+    if (!previewFile) { setAudioUrl(''); return; }
+    const objectUrl = URL.createObjectURL(previewFile);
     setAudioUrl(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
-  }, [audioFile]);
+  }, [previewFile]);
 
   function change(next: LrcLine[]) {
     setLines(next);
@@ -80,6 +82,12 @@ export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChang
           Your original words and section order are preserved.
         </p>
       </div>
+      {!audioFile && (
+        <label className="block border border-ink p-3 font-mono text-xs cursor-pointer">
+          Load the recording for timing playback (stays on this device)
+          <input type="file" accept="audio/*,.mp3,.m4a,.wav,.flac" className="block mt-2 text-xs" onChange={(e) => setSelectedAudio(e.target.files?.[0] ?? null)} />
+        </label>
+      )}
       {audioUrl ? (
         <audio
           ref={player}
