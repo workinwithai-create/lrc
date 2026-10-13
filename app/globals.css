@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Caveat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -69,7 +69,6 @@ input, textarea, button, select {
 
 
 /* The artist's notebook: handwriting playback */
-@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&display=swap');
 
 .handwriting-studio { border: 2px solid #362f28; background: #dfd8c8; box-shadow: 7px 7px 0 rgba(34,30,24,.18); margin: 18px 0; }
 .handwriting-controls { background: #241f1b; color: #f2e4cb; padding: 22px; display: grid; gap: 12px; }
