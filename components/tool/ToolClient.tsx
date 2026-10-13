@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
+import TimingEditor from './TimingEditor';
 
 type Props = {
   user: any;
@@ -16,7 +17,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
   const [songTitle, setSongTitle] = useState('');
   const [artistName, setArtistName] = useState('');
   const [lyrics, setLyrics] = useState('');
-  const [mode, setMode] = useState<'smart' | 'strict'>('smart');
+  const [mode, setMode] = useState<'smart' | 'strict'>('strict');
   const [offsetSeconds, setOffsetSeconds] = useState(0);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
   const [statusMsg, setStatusMsg] = useState('');
@@ -27,6 +28,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
     wordCount: number;
     lineCount: number;
     duration: number;
+    songId?: string | null;
   } | null>(null);
 
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -101,7 +103,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
       formData.append('offset', String(offsetSeconds));
 
       setProgress(35);
-      setStatusMsg('Whisper is listening to every word...');
+      setStatusMsg('Transcribing the recording with Whisper and Deepgram...');
 
       const res = await fetch('/api/generate-lrc', {
         method: 'POST',
@@ -109,7 +111,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
       });
 
       setProgress(80);
-      setStatusMsg('Aligning lyrics...');
+      setStatusMsg('Building a synchronized .lrc file...');
 
       if (!res.ok) {
         const data = await readResponseJson(res);
@@ -128,6 +130,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
         wordCount: data.wordCount,
         lineCount: data.lineCount,
         duration: data.duration,
+        songId: data.songId,
       });
       setCredits(data.creditsRemaining);
       setStatus('done');
@@ -185,7 +188,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
 
       <div className="max-w-3xl mx-auto px-6 py-10">
         <div className="font-serif italic text-lg text-blood mb-1">
-          Upload a track. Paste the words.
+          Upload a track. Generate the lyrics and timestamps automatically.
         </div>
         <h1 className="font-display text-5xl md:text-7xl uppercase leading-none tracking-tight">
           Forge an<br />
@@ -201,7 +204,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
                 mode === 'smart' ? 'bg-ink text-paper' : 'bg-paper text-ink'
               }`}
             >
-              Smart Align
+              Align Written Lyrics
             </button>
             <button
               onClick={() => setMode('strict')}
@@ -209,13 +212,13 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
                 mode === 'strict' ? 'bg-ink text-paper' : 'bg-paper text-ink'
               }`}
             >
-              Strict Whisper
+              Auto-Transcribe
             </button>
           </div>
           <div className="font-serif italic text-sm text-mute px-1">
             {mode === 'smart'
-              ? 'Paste your lyrics — the output keeps your exact lines with Whisper timing. Use this for Smule.'
-              : "No lyrics needed. Whisper transcribes and groups by pauses. Output won't match your lyric lines."}
+              ? 'Already have the exact lyrics? Paste them below. Whisper matches your words to the recording and preserves your line breaks.'
+              : "No lyrics needed. Whisper transcribes the vocal and times each line automatically. You can correct the result before exporting to INK."}
           </div>
 
           {/* Timing offset */}
@@ -349,7 +352,7 @@ Chorus line`}
             disabled={!canGenerate || status === 'uploading'}
             className="w-full bg-ink text-paper py-6 font-display text-3xl tracking-wider uppercase disabled:opacity-40 hard-shadow-blood active:translate-x-[3px] active:translate-y-[3px] active:[box-shadow:3px_3px_0_var(--blood)]"
           >
-            {status === 'uploading' ? 'Forging...' : 'Forge It'}{' '}
+            {status === 'uploading' ? 'Forging...' : 'Generate Timed Lyrics'}{' '}
             <span className="text-gold">→</span>
           </button>
 
@@ -381,7 +384,7 @@ Chorus line`}
           {result && (
             <div className="border-2 border-ink hard-shadow-gold">
               <div className="bg-gold text-ink px-4 py-3 flex items-center justify-between border-b-2 border-ink">
-                <div className="font-display text-xl uppercase">.LRC Ready</div>
+                <div className="font-display text-xl uppercase">Timed Lyrics Generated</div>
                 <div className="flex gap-2">
                   <button
                     onClick={copy}
@@ -408,6 +411,13 @@ Chorus line`}
               <pre className="bg-ink text-paper p-4 font-mono text-xs leading-loose max-h-80 overflow-auto whitespace-pre">
                 {result.lrc}
               </pre>
+              <TimingEditor
+                key={result.songId || result.duration}
+                initialLrc={result.lrc}
+                audioFile={audioFile}
+                songId={result.songId}
+                onLrcChange={(lrc) => setResult((current) => current ? { ...current, lrc } : current)}
+              />
               <div className="bg-paper p-4 border-t-2 border-ink">
                 <button
                   onClick={reset}

@@ -9,7 +9,7 @@ import {
   normalizeEmail,
 } from '@/lib/wwa-auth';
 
-const PROTECTED_PAGES = ['/dashboard', '/tool'];
+const PROTECTED_PAGES = ['/dashboard', '/tool', '/editor'];
 const PUBLIC_API_PREFIXES = ['/api/stripe-webhook', '/api/waitlist'];
 type CookieUpdate = { name: string; value: string; options?: any };
 
