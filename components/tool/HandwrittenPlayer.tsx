@@ -52,6 +52,7 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
   const [inkColor, setInkColor] = useState<'sepia' | 'blue'>('sepia');
   const player = useRef<HTMLAudioElement>(null);
   const activeRow = useRef<HTMLDivElement>(null);
+  const notebook = useRef<HTMLDivElement>(null);
   const raf = useRef<number>(0);
   const lastRendered = useRef(-1);
 
@@ -83,7 +84,13 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
   const activeIndex = lines.reduce((last, line, i) => (line.seconds <= clock ? i : last), -1);
 
   useEffect(() => {
-    activeRow.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const row = activeRow.current;
+    const page = notebook.current;
+    if (!row || !page) return;
+    const rowTop = row.getBoundingClientRect().top;
+    const paperTop = page.getBoundingClientRect().top;
+    // Only move the notebook's interior. scrollIntoView would yank Safari's entire screen.
+    page.scrollTo({ top: page.scrollTop + rowTop - paperTop - page.clientHeight * .45, behavior: 'smooth' });
   }, [activeIndex]);
 
   const timeLabel = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
@@ -133,7 +140,7 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
         <p className="handwriting-counter">{timeLabel(playhead)} · {lines.length} timed lines {lines.length < parsed.lines.length ? '· first 350 shown' : ''}</p>
       </div>
 
-      <div className={`handwriting-paper handwriting-${inkColor}`}>
+      <div ref={notebook} className={`handwriting-paper handwriting-${inkColor}`}>
         <div className="handwriting-margin" />
         <div className="handwriting-paper-content">
           <div className="handwriting-title">{title || titleTag || 'Untitled'}</div>
