@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
+import TimingEditor from './TimingEditor';
 
 type Props = {
   user: any;
@@ -27,6 +28,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
     wordCount: number;
     lineCount: number;
     duration: number;
+    songId?: string | null;
   } | null>(null);
 
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -128,6 +130,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
         wordCount: data.wordCount,
         lineCount: data.lineCount,
         duration: data.duration,
+        songId: data.songId,
       });
       setCredits(data.creditsRemaining);
       setStatus('done');
@@ -408,6 +411,13 @@ Chorus line`}
               <pre className="bg-ink text-paper p-4 font-mono text-xs leading-loose max-h-80 overflow-auto whitespace-pre">
                 {result.lrc}
               </pre>
+              <TimingEditor
+                key={result.songId || result.duration}
+                initialLrc={result.lrc}
+                audioFile={audioFile}
+                songId={result.songId}
+                onLrcChange={(lrc) => setResult((current) => current ? { ...current, lrc } : current)}
+              />
               <div className="bg-paper p-4 border-t-2 border-ink">
                 <button
                   onClick={reset}
