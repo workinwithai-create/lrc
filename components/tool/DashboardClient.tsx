@@ -177,6 +177,7 @@ export default function DashboardClient({
                       {new Date(song.created_at).toLocaleDateString()}
                     </div>
                   </div>
+                  <Link href={`/editor/${song.id}`} className="border-2 border-ink px-4 py-2 font-mono text-xs font-bold uppercase hover:bg-ink hover:text-paper">Edit timing</Link>
                   <button
                     onClick={() => downloadLRC(song)}
                     className="bg-ink text-paper px-4 py-2 font-mono text-xs font-bold tracking-widest uppercase hover:bg-blood"
