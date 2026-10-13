@@ -20,6 +20,8 @@ export default async function DashboardPage({
   const { data: songs } = await supabase
     .from('songs')
     .select('*')
+    // The WorkinWithAI Song Core also writes to this table; only show real LRC files.
+    .not('lrc_content', 'is', null)
     .order('created_at', { ascending: false })
     .limit(20);
 
