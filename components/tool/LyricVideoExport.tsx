@@ -5,7 +5,7 @@ import type { LrcLine } from '@/lib/lrc-timing';
 import { lyricLines } from '@/lib/song-features';
 import { getWritingInterval, handwritingFraction } from '@/lib/handwriting-timing';
 
-type Props = {lines:LrcLine[]; audioFile:File|null; title:string};
+type Props = {lines:LrcLine[]; audioFile:File|null; title:string; playbackTime?:number};
 type Template = 'paper'|'midnight';
 const safeFileName=(name:string)=>name.toLowerCase().replace(/[^a-z0-9-]+/g,'-').slice(0,60)||'lyrics';
 
@@ -57,7 +57,7 @@ function paintFrame(canvas:HTMLCanvasElement,lines:LrcLine[],sec:number,template
   ctx.fillText('LRC FORGE  ·  HANDWRITTEN LYRICS',w/2,h*.92,w*.75);
 }
 
-export default function LyricVideoExport({lines,audioFile,title}:Props) {
+export default function LyricVideoExport({lines,audioFile,title,playbackTime=0}:Props) {
   const canvas=useRef<HTMLCanvasElement>(null);
   const [template,setTemplate]=useState<Template>('paper');
   const [ratio,setRatio]=useState<'wide'|'vertical'>('vertical');
@@ -76,8 +76,8 @@ export default function LyricVideoExport({lines,audioFile,title}:Props) {
   useEffect(()=>{
     const el=canvas.current;if(!el)return;
     [el.width,el.height]=ratio==='vertical'?[720,1280]:[1280,720];
-    paintFrame(el,lines,0,template,title,lead);
-  },[lines,ratio,template,title,lead]);
+    paintFrame(el,lines,playbackTime,template,title,lead);
+  },[lines,ratio,template,title,lead,playbackTime]);
 
   async function exportVideo(){
     if(!audioFile || !canvas.current){setError('Load the recording before exporting.');return;}
@@ -170,6 +170,7 @@ export default function LyricVideoExport({lines,audioFile,title}:Props) {
       <label className="font-mono text-xs">Frame<select className="block w-full border-2 border-ink bg-paper p-3 mt-1" value={ratio} onChange={e=>setRatio(e.target.value as 'wide'|'vertical')}><option value="vertical">9:16 Reels/Shorts</option><option value="wide">16:9 YouTube</option></select></label>
       <label className="font-mono text-xs">Pen offset<select className="block w-full border-2 border-ink bg-paper p-3 mt-1" value={lead} onChange={e=>setLead(Number(e.target.value))}><option value={-0.5}>0.5 sec early</option><option value={-0.3}>0.3 sec early</option><option value={0}>On the lyric</option></select></label>
     </div>
+    <p className="font-mono text-xs text-mute">Press Play in the workshop audio player to preview the lyric animation here before exporting.</p>
     <canvas ref={canvas} className="block w-full max-w-lg mx-auto border-2 border-ink bg-paper" style={{aspectRatio:ratio==='wide'?'16/9':'9/16',maxHeight:460,width:ratio==='wide'?'100%':'auto'}} aria-label="Lyric video template preview" />
     <div className="flex flex-wrap gap-3 items-center">
       <button type="button" className="bg-blood text-paper px-5 py-3 font-mono font-bold text-sm disabled:opacity-40" disabled={!audioFile||!lines.length||busy||format==='unavailable'} onClick={()=>void exportVideo()}>{busy?'Rendering in real time…':'Export '+(format==='unknown'?'video':format)+' video'}</button>
