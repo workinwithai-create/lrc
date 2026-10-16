@@ -131,7 +131,7 @@ export default function FeatureStudio({initialLrc='',initialAudio=null,initialTa
           {spoken.map((line,i)=><button type="button" key={i} onClick={()=>seek(line.seconds)} className={'block w-full p-2 text-sm text-left '+(i===current?.index?'bg-gold/25 font-bold':'')}>{clock(line.seconds)} · {line.text}</button>)}
         </div>
       </div>}
-      {activeTab==='video'&&<div role="tabpanel"><LyricVideoExport lines={lrc.lines} audioFile={audio} title={title}/></div>}
+      {activeTab==='video'&&<div role="tabpanel"><LyricVideoExport lines={lrc.lines} audioFile={audio} title={title} playbackTime={time}/></div>}
       {activeTab==='timing'&&<div role="tabpanel" className="space-y-4">
         <div className="forge-panel-heading"><h3>Vocal timing practice</h3><p>Listen to your vocal take and tap as each line begins; see how early or late each tap was against the LRC. This is a manual onset practice tool, not automatic vocal recognition or pitch coaching.</p></div>
         <div className="forge-timing-target"><div className="font-mono text-xs opacity-60">NEXT LINE {taps.length+1} / {spoken.length}</div><div className="font-serif italic text-3xl my-4">{spoken[taps.length]?.text||'Practice complete'}</div><div className="font-mono text-xs">Expected at {spoken[taps.length]?clock(spoken[taps.length].seconds):'—'}</div></div>
