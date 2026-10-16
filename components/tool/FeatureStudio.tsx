@@ -67,7 +67,7 @@ export default function FeatureStudio({initialLrc='',initialAudio=null,initialTa
   useEffect(()=>{setAudio(initialAudio);},[initialAudio]);
   useEffect(()=>{if(!audio){setAudioUrl('');return;}const url=URL.createObjectURL(audio);setAudioUrl(url);return()=>URL.revokeObjectURL(url);},[audio]);
   useEffect(()=>{setTaps([]);setLoop(null);setRenamed({});},[raw]);
-  useEffect(()=>{const h=hooks[hookIndex];if(!h)return;setClipStart(h.start);setClipSeconds(Math.round(Math.max(15,Math.min(30,h.end-h.start))));},[hooks,hookIndex]);
+  useEffect(()=>{const h=hooks[hookIndex];if(!h)return;setClipStart(h.start);setClipSeconds([30,25,20,15].find(n=>n<=h.end-h.start+.01)||15);},[hooks,hookIndex]);
 
   function seek(at:number){const el=player.current;if(!el)return;el.currentTime=Math.max(0,at);setTime(el.currentTime);void el.play().catch(()=>setStatus('Tap Play in the audio player to begin.'));}
   function onTick(){
@@ -109,7 +109,7 @@ export default function FeatureStudio({initialLrc='',initialAudio=null,initialTa
       <audio ref={player} src={audioUrl||undefined} controls preload="metadata" className="w-full" aria-label="Workshop audio" onTimeUpdate={onTick} onSeeked={onTick} onLoadedMetadata={e=>setDuration(Number.isFinite(e.currentTarget.duration)?e.currentTarget.duration:0)}/>
       <p className="font-mono text-xs text-mute">{clock(time)} / {clock(duration)} · {spoken.length} timed lines · {sections.length} sections</p>
       <div role="tablist" aria-label="LRC tools" className="forge-tabs">
-        {tabs.map(t=><button key={t.key} role="tab" aria-selected={activeTab===t.key} className={activeTab===t.key?'forge-tab-selected':''} onClick={()=>{setActiveTab(t.key);setLoop(null);setStatus('');}}>{t.title}</button>)}
+        {tabs.map(t=><button key={t.key} role="tab" aria-selected={activeTab===t.key} className={activeTab===t.key?'forge-tab-selected':''} onClick={()=>{player.current?.pause();setActiveTab(t.key);setLoop(null);setStatus('');}}>{t.title}</button>)}
       </div>
 
       {activeTab==='karaoke'&&<div role="tabpanel" className="space-y-4">
