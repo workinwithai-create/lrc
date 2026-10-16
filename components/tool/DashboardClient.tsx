@@ -53,6 +53,7 @@ export default function DashboardClient({
           LRC<span className="font-serif italic text-blood text-2xl mx-1">&</span>FORGE
         </Link>
         <div className="flex gap-4 items-center">
+          <Link href="/workshop" className="font-mono text-xs font-bold tracking-widest uppercase hover:text-blood">Workshop</Link>
           <Link href="/pricing" className="font-mono text-xs font-bold tracking-widest uppercase hover:text-blood">
             Pricing
           </Link>
