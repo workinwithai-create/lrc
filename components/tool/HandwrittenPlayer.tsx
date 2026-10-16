@@ -2,11 +2,12 @@
 
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { parseLrc } from '@/lib/lrc-timing';
+import { getWritingInterval, handwritingFraction, writingOffsetLabel } from '@/lib/handwriting-timing';
 
 type Props = { lrc: string; audioFile?: File | null; title?: string; artist?: string };
 
 const MAX_VISIBLE = 350;
-const DEFAULT_DELAY = 2;
+const DEFAULT_OFFSET = 0;
 
 function HandPen() {
   return (
@@ -46,7 +47,9 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
   const [localAudio, setLocalAudio] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [playhead, setPlayhead] = useState(0);
-  const [delay, setDelay] = useState(DEFAULT_DELAY);
+  // Negative starts writing before the vocal, positive starts after it.
+  const [offset, setOffset] = useState(DEFAULT_OFFSET);
+  const [audioDuration, setAudioDuration] = useState<number | undefined>(undefined);
   const [speed, setSpeed] = useState(1);
   const [playing, setPlaying] = useState(false);
   const [inkColor, setInkColor] = useState<'sepia' | 'blue'>('sepia');
@@ -60,6 +63,7 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
 
   useEffect(() => {
     if (!source) { setAudioUrl(null); return; }
+    setAudioDuration(undefined);
     const url = URL.createObjectURL(source);
     setAudioUrl(url);
     return () => URL.revokeObjectURL(url);
@@ -80,8 +84,10 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
     return () => cancelAnimationFrame(raf.current);
   }, [playing]);
 
-  const clock = Math.max(0, playhead - delay);
-  const activeIndex = lines.reduce((last, line, i) => (line.seconds <= clock ? i : last), -1);
+  // Build a deterministic timeline from the saved LRC instead of any wall-clock timers.
+  // Pen pacing adapts to the available interval before the next sung line.
+  const writing = useMemo(() => lines.map((_, i) => getWritingInterval(lines, i, offset, speed, audioDuration)), [lines, offset, speed, audioDuration]);
+  const activeIndex = writing.reduce((last, interval, i) => (interval.start <= playhead ? i : last), -1);
 
   useEffect(() => {
     const row = activeRow.current;
@@ -103,7 +109,7 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
         <div>
           <p className="handwriting-kicker">LRC FORGE · HANDWRITTEN PLAYBACK</p>
           <h3 className="handwriting-header">Watch the words find the page.</h3>
-          <p className="handwriting-sub">A notebook that writes in time with the recording. Pause or seek to replay the strokes.</p>
+          <p className="handwriting-sub">The pen follows each sung line by default. Try Lead for lyric videos, or Trail for an intentional late reveal. Pause or seek to replay the strokes.</p>
         </div>
         {!audioFile && (
           <label className="handwriting-audio-upload">
@@ -117,6 +123,7 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
           controls
           preload="metadata"
           className="handwriting-audio"
+          onLoadedMetadata={e => setAudioDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : undefined)}
           onTimeUpdate={e => setPlayhead(e.currentTarget.currentTime)}
           onSeeked={e => setPlayhead(e.currentTarget.currentTime)}
           onPlay={() => setPlaying(true)}
@@ -125,10 +132,17 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
         />
         {!audioUrl && <p className="handwriting-help">Select the original recording to animate these lyrics against its playback.</p>}
         <div className="handwriting-adjustments">
-          <label>
-            Writing trails the vocal by <strong>{delay.toFixed(1)} sec</strong>
-            <input type="range" min="0" max="5" step=".5" value={delay} onChange={e => setDelay(Number(e.target.value))} aria-label="Handwriting delay seconds" />
-          </label>
+          <div className="handwriting-sync">
+            <div className="handwriting-mode-buttons" role="group" aria-label="Handwriting alignment">
+              <button type="button" className={Math.abs(offset) < .05 ? 'handwriting-mode-active' : ''} aria-pressed={Math.abs(offset) < .05} onClick={() => setOffset(0)}>Sync</button>
+              <button type="button" className={offset < -.05 ? 'handwriting-mode-active' : ''} aria-pressed={offset < -.05} onClick={() => setOffset(-.4)}>Lead</button>
+              <button type="button" className={offset > .05 ? 'handwriting-mode-active' : ''} aria-pressed={offset > .05} onClick={() => setOffset(.4)}>Trail</button>
+            </div>
+            <label>
+              <span>Timing <strong>{writingOffsetLabel(offset)}</strong></span>
+              <input type="range" min="-1" max="1" step=".1" value={offset} onChange={e => setOffset(Number(e.target.value))} aria-label="Writing offset: negative for early, zero for synchronized, positive for late" />
+            </label>
+          </div>
           <label>
             Pen pace <strong>{speed.toFixed(1)}×</strong>
             <input type="range" min=".6" max="1.8" step=".2" value={speed} onChange={e => setSpeed(Number(e.target.value))} aria-label="Handwriting stroke speed" />
@@ -147,11 +161,9 @@ export default function HandwrittenPlayer({ lrc, audioFile, title, artist }: Pro
           <div className="handwriting-byline">words in motion · {artist || artistTag || 'LRC Forge'}</div>
           {lines.map((entry, i) => {
             const isMarker = /^\[[^\]]+\]$/.test(entry.text.trim());
-            const following = lines[i + 1]?.seconds ?? entry.seconds + 5;
-            const timeBudget = Math.max(.5, following - entry.seconds);
-            const duration = Math.min(timeBudget * .9, Math.max(.8, entry.text.length * .065 / speed));
-            const timeSinceStart = clock - entry.seconds;
-            const fraction = Math.max(0, Math.min(1, timeSinceStart / duration));
+            const { start, duration } = writing[i];
+            const fraction = handwritingFraction(playhead, start, duration);
+            const timeSinceStart = playhead - start;
             const totalLetters = Array.from(entry.text).length;
             const visible = fraction >= 1 ? totalLetters : Math.floor(fraction * totalLetters);
             const active = i === activeIndex && fraction < 1 && timeSinceStart >= 0;
