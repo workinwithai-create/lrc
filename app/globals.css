@@ -128,3 +128,11 @@ input, textarea, button, select {
   .handwriting-paper-content {padding:27px 16px 50px 55px}
   .handwriting-line {min-height:35px}
 }
+
+.handwriting-sync { display: grid; gap: 11px; min-width: min(100%, 245px); }
+.handwriting-sync label { width: 100%; min-width: 0; }
+.handwriting-mode-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid #be9d5e; }
+.handwriting-mode-buttons button { padding: 10px 8px; color: #f1dab6; font: 700 11px 'JetBrains Mono',monospace; border-right: 1px solid #be9d5e; }
+.handwriting-mode-buttons button:last-child { border-right: none; }
+.handwriting-mode-buttons button.handwriting-mode-active { background: #d5ae68; color: #241f1b; }
+.handwriting-mode-buttons button:focus-visible, .handwriting-ink-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
