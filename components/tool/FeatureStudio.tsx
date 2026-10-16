@@ -6,7 +6,7 @@ import { detectHooks, detectSections, lyricLines, scoreTappedEntries, timedKarao
 import LyricVideoExport from './LyricVideoExport';
 
 type Feature = 'karaoke'|'video'|'timing'|'snippets'|'structure';
-type Props = { initialLrc?:string; initialAudio?:File|null };
+type Props = { initialLrc?:string; initialAudio?:File|null; initialTab?:Feature };
 const tabs:{key:Feature;title:string}[]=[
   {key:'karaoke',title:'Karaoke'}, {key:'video',title:'Lyric video'},
   {key:'timing',title:'Timing coach'}, {key:'snippets',title:'Hook clips'},
@@ -44,11 +44,11 @@ async function makeWavClip(file:File,start:number,end:number):Promise<Blob>{
   }finally{void context.close();}
 }
 
-export default function FeatureStudio({initialLrc='',initialAudio=null}:Props){
+export default function FeatureStudio({initialLrc='',initialAudio=null,initialTab='karaoke'}:Props){
   const [raw,setRaw]=useState(initialLrc);
   const [audio,setAudio]=useState<File|null>(initialAudio);
   const [audioUrl,setAudioUrl]=useState('');
-  const [activeTab,setActiveTab]=useState<Feature>('karaoke');
+  const [activeTab,setActiveTab]=useState<Feature>(initialTab);
   const [time,setTime]=useState(0),[duration,setDuration]=useState(0);
   const [loop,setLoop]=useState<number|null>(null);
   const [taps,setTaps]=useState<number[]>([]);
