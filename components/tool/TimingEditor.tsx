@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseLrc, retimeLine, serializeLrc, type LrcLine } from '@/lib/lrc-timing';
 import HandwrittenPlayer from './HandwrittenPlayer';
+import FeatureStudio from './FeatureStudio';
 
 type Props = {
   initialLrc: string;
@@ -77,6 +78,10 @@ export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChang
   return (
     <section className="bg-paper border-t-2 border-ink p-3 sm:p-4 space-y-4" aria-label="Lyric timing editor">
       <HandwrittenPlayer lrc={currentLrc} audioFile={previewFile} />
+      <details className="border-2 border-ink bg-paper my-5">
+        <summary className="cursor-pointer bg-ink text-paper px-4 py-4 font-display text-xl uppercase">Open creative workshop · Karaoke / Video / Hooks / Timing / Song Map</summary>
+        <FeatureStudio initialLrc={currentLrc} initialAudio={previewFile} />
+      </details>
       <div>
         <h3 className="font-display text-2xl uppercase">Fine-tune timing</h3>
         <p className="font-serif italic text-sm text-mute">
