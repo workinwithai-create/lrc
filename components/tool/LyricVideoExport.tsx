@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { LrcLine } from '@/lib/lrc-timing';
-import { lyricLines, timedKaraokeLine } from '@/lib/song-features';
+import { lyricLines } from '@/lib/song-features';
 import { getWritingInterval, handwritingFraction } from '@/lib/handwriting-timing';
 
 type Props = {lines:LrcLine[]; audioFile:File|null; title:string};
@@ -24,21 +24,32 @@ function paintFrame(canvas:HTMLCanvasElement,lines:LrcLine[],sec:number,template
   ctx.textAlign='center';ctx.fillStyle=light?'#594330':'#f2dbb7';
   ctx.font=String(Math.round(w*.055))+'px Caveat, cursive';
   ctx.fillText(title.slice(0,36),w/2,h*.14,w*.78);
-  const active=timedKaraokeLine(lines,sec);
-  if(!active)return;
-  const line=words[active.index];
-  const interval=getWritingInterval(words,active.index,lead,1.1);
+  // Unlike karaoke, the video cue follows the signed *writing* start,
+  // so a -0.3s lead actually reveals the next line before it is sung.
+  const lineIndex=words.reduce((last,line,i)=>line.seconds+lead<=sec?i:last,-1);
+  if(lineIndex<0)return;
+  const line=words[lineIndex];
+  const interval=getWritingInterval(words,lineIndex,lead,1.1);
   const fraction=handwritingFraction(sec,interval.start,interval.duration);
   ctx.font=String(Math.round(w*.065))+'px Caveat, cursive';
+  const previous=words[lineIndex-1]?.text||'';
+  const next=words[lineIndex+1]?.text||'';
   ctx.textAlign='center';
-  const previous=words[active.index-1]?.text||'';
-  const next=words[active.index+1]?.text||'';
   ctx.globalAlpha=.35;
   ctx.fillText(previous.slice(0,54),w/2,h*.38,w*.83);
   ctx.globalAlpha=1;
-  // Reveal the handwriting stroke by stroke, based on audio time.
-  const written=Array.from(line.text).slice(0,Math.ceil(Array.from(line.text).length*fraction)).join('');
-  ctx.fillText(written,w/2,h*.52,w*.85);
+  // Keep pen position anchored at the left edge while the letters accumulate.
+  const letters=Array.from(line.text);
+  const written=letters.slice(0,Math.ceil(letters.length*fraction)).join('');
+  ctx.textAlign='left';
+  ctx.fillText(written,w*.13,h*.52,w*.75);
+  if(fraction>0&&fraction<1){
+    const extent=ctx.measureText(written).width;
+    ctx.fillStyle=light?'#b9774b':'#f2bf74';
+    ctx.beginPath();ctx.ellipse(Math.min(w*.86,w*.13+extent)+7,h*.52-11,3,10,-.6,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=light?'#594330':'#f2dbb7';
+  }
+  ctx.textAlign='center';
   ctx.globalAlpha=.32;
   ctx.fillText(next.slice(0,54),w/2,h*.66,w*.83);
   ctx.globalAlpha=1;
