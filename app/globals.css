@@ -136,3 +136,26 @@ input, textarea, button, select {
 .handwriting-mode-buttons button:last-child { border-right: none; }
 .handwriting-mode-buttons button.handwriting-mode-active { background: #d5ae68; color: #241f1b; }
 .handwriting-mode-buttons button:focus-visible, .handwriting-ink-toggle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+
+/* LRC Forge creative workshop */
+.forge-workshop { color: var(--ink); }
+.forge-workshop-head { background:#221d19; color:#f5e9d5; padding:28px 24px; border:2px solid #221d19; border-bottom:3px solid var(--gold); }
+.forge-tabs { display:grid; grid-template-columns: repeat(5,minmax(0,1fr)); border:2px solid var(--ink); overflow:hidden; background:var(--paper); }
+.forge-tabs button { padding:14px 8px; text-align:center; font:700 11px/1.5 'JetBrains Mono',monospace; border-right:1px solid rgba(15,14,12,.22); min-width:0; }
+.forge-tabs button:last-child {border-right:0}
+.forge-tabs .forge-tab-selected {background:var(--ink); color:#f8f0e2;}
+.forge-tabs button:hover:not(.forge-tab-selected) {background:rgba(232,185,35,.15)}
+.forge-panel-heading {border-bottom:1px solid rgba(15,14,12,.25); padding-bottom:14px; margin-bottom:16px}
+.forge-panel-heading h3 {font:normal 30px/1.1 Anton,Impact,sans-serif; text-transform:uppercase; letter-spacing:.015em; margin-bottom:8px}
+.forge-panel-heading p {font:italic 17px/1.45 'Instrument Serif',Georgia,serif;color:var(--mute)}
+.forge-karaoke-stage {min-height:260px;background:#241f1b;color:#f8eed6;display:flex;flex-direction:column;gap:20px;align-items:center;justify-content:center;padding:28px 20px;border-bottom:4px solid var(--gold);text-align:center}
+.forge-karaoke-secondary {font:italic 24px/1.2 'Instrument Serif',Georgia,serif;opacity:.55}
+.forge-karaoke-current {position:relative;isolation:isolate;overflow:hidden;max-width:100%;font:600 clamp(26px,5vw,44px)/1.25 'Caveat','Apple Chancery',cursive;padding:10px 20px}
+.forge-karaoke-highlight {position:absolute;inset:0 auto 0 0;background:rgba(232,185,35,.48);transition:width 100ms linear;z-index:0}
+.forge-timing-target {background:#241f1b;color:#f8eed6;padding:25px;min-height:145px;border-left:4px solid var(--gold)}
+@media (max-width:670px) {
+ .forge-tabs {grid-template-columns:repeat(3,minmax(0,1fr))}
+ .forge-tabs button {font-size:10px; border-bottom:1px solid rgba(15,14,12,.18)}
+ .forge-workshop-head {padding:20px}
+}
