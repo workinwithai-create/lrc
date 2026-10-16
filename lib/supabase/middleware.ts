@@ -65,7 +65,15 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const { data: { user: wwaUser } } = await wwa.auth.getUser();
+  // Stale mobile cookies can make Supabase throw during refresh rather than
+  // return { error }. Treat that as signed out and let the hub renew the session.
+  let wwaUser: Awaited<ReturnType<typeof wwa.auth.getUser>>['data']['user'] = null;
+  try {
+    const session = await wwa.auth.getUser();
+    wwaUser = session.data.user;
+  } catch (error) {
+    console.warn('[WWA auth] Session refresh failed; restarting sign-in:', error instanceof Error ? error.message : 'expired session');
+  }
   if (!wwaUser) {
     if (isProtectedApi) {
       return copyCookies(
@@ -121,7 +129,13 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const { data: { user: lrcUser } } = await lrc.auth.getUser();
+  let lrcUser: Awaited<ReturnType<typeof lrc.auth.getUser>>['data']['user'] = null;
+  try {
+    const session = await lrc.auth.getUser();
+    lrcUser = session.data.user;
+  } catch (error) {
+    console.warn('[LRC auth] Local session expired; restarting secure bridge:', error instanceof Error ? error.message : 'expired session');
+  }
   const identitiesMatch = Boolean(
     lrcUser && normalizeEmail(lrcUser.email) === normalizeEmail(wwaUser.email)
   );

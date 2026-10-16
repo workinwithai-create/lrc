@@ -15,3 +15,18 @@ export function getSafeAudioExtension(fileName: string, mimeType: string) {
 
   return 'audio';
 }
+
+/** iOS Files can supply audio with no MIME type or application/octet-stream. */
+export function getAudioMimeType(fileName: string, browserMime = ''): string {
+  const name = fileName.toLowerCase();
+  const extension = name.split('.').pop() || '';
+  const known: Record<string, string> = {
+    mp3: 'audio/mpeg', mpga: 'audio/mpeg',
+    wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'audio/mp4',
+    aac: 'audio/aac', flac: 'audio/flac', ogg: 'audio/ogg',
+    webm: 'audio/webm', aif: 'audio/aiff', aiff: 'audio/aiff',
+    caf: 'audio/x-caf',
+  };
+  if (browserMime.startsWith('audio/')) return browserMime;
+  return known[extension] || '';
+}

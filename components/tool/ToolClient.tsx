@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
+import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES, getAudioMimeType } from '@/lib/audio-storage';
 import TimingEditor from './TimingEditor';
 
 type Props = {
@@ -37,11 +37,21 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
     audioFile && (mode === 'strict' || lyrics.trim().length > 10);
 
   function handleFile(file: File) {
+    if (!getAudioMimeType(file.name, file.type)) {
+      setError('Please choose an MP3, M4A, WAV, AAC, FLAC, OGG, or WebM audio file from Files.');
+      return;
+    }
+    if (file.size === 0) {
+      setError('This recording is empty. Download the audio into Files and select it again.');
+      return;
+    }
     if (file.size > MAX_AUDIO_BYTES) {
       setError('File too large — max 25MB');
       return;
     }
     setAudioFile(file);
+    setResult(null);
+    setStatus('idle');
     setError('');
   }
 
@@ -66,12 +76,14 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
     setStatusMsg('Uploading audio...');
 
     try {
+      const mimeType = getAudioMimeType(audioFile.name, audioFile.type);
+      if (!mimeType) throw new Error('This file is not a supported audio recording.');
       const tokenRes = await fetch('/api/audio-upload-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fileName: audioFile.name,
-          contentType: audioFile.type || 'audio/mpeg',
+          contentType: mimeType,
           size: audioFile.size,
         }),
       });
@@ -85,7 +97,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
       const { error: uploadError } = await supabase.storage
         .from(AUDIO_UPLOAD_BUCKET)
         .uploadToSignedUrl(tokenData.path, tokenData.token, audioFile, {
-          contentType: audioFile.type || 'audio/mpeg',
+          contentType: mimeType,
         });
 
       if (uploadError) {
@@ -95,7 +107,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
       const formData = new FormData();
       formData.append('audioPath', tokenData.path);
       formData.append('audioName', audioFile.name);
-      formData.append('audioType', audioFile.type || 'audio/mpeg');
+      formData.append('audioType', mimeType);
       formData.append('lyrics', lyrics);
       formData.append('mode', mode);
       formData.append('title', songTitle || 'Untitled');
@@ -186,7 +198,11 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
         </div>
       </nav>
 
-      <div className="max-w-3xl mx-auto px-6 py-10">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+        <div className="bg-ink text-paper border-l-4 border-gold px-4 py-3 mb-7">
+          <p className="font-mono text-xs text-gold tracking-widest uppercase">LRC Forge · Notebook Edition</p>
+          <p className="font-serif italic text-sm mt-1">Automatic lyric transcription, line-by-line timing and live handwriting as the song plays.</p>
+        </div>
         <div className="font-serif italic text-lg text-blood mb-1">
           Upload a track. Generate the lyrics and timestamps automatically.
         </div>
@@ -255,24 +271,23 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
               </span>
             </div>
             <div className="p-5">
-              <label
-                htmlFor="audio-input"
-                className={`block cursor-pointer w-full text-center py-7 font-display text-2xl tracking-wider uppercase transition-transform ${
-                  audioFile ? 'bg-ink text-paper' : 'bg-blood text-paper'
-                } active:translate-x-[2px] active:translate-y-[2px] relative`}
-              >
-                {audioFile ? 'Change File' : 'Choose Audio File'}
-                <span className="block font-serif italic text-sm font-normal normal-case tracking-normal mt-1 opacity-90">
-                  MP3 · WAV · M4A · FLAC · up to 25MB
-                </span>
+              <label htmlFor="audio-input" className="block font-display text-xl tracking-wide mb-2">
+                Choose a recording
               </label>
+              <p className="font-serif italic text-sm text-mute mb-3">
+                On iPhone, tap below and choose Browse → Files. Select an MP3, M4A or WAV saved to your phone or iCloud Drive (25 MB max).
+              </p>
               <input
                 ref={audioInputRef}
                 type="file"
                 id="audio-input"
-                accept="audio/*,.mp3,.wav,.m4a,.flac,.ogg"
-                onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-                className="sr-only"
+                aria-label="Select an audio recording from Files"
+                accept=".mp3,.wav,.m4a,.mp4,.aac,.flac,.ogg,.webm,.aif,.aiff,.caf,audio/*"
+                onChange={(e) => {
+                  const file = e.currentTarget.files?.[0];
+                  if (file) handleFile(file);
+                }}
+                className="block w-full max-w-full border-2 border-ink bg-paper px-3 py-4 font-mono text-sm text-ink"
               />
               {audioFile && (
                 <div className="mt-3 bg-ink text-paper p-3 border-l-4 border-gold">
