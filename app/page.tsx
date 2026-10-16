@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import WaitlistForm from '@/components/landing/WaitlistForm';
 
 // Billing is on the WorkinWithAI hub — same destination as /pricing.
 const HUB_PRICING = 'https://workinwithai.com/#pricing';
@@ -164,50 +163,33 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Coming soon - waitlist */}
-      <section className="bg-paper border-t-[3px] border-ink py-20">
+      {/* Creative workshop - capabilities are labelled at their actual beta scope */ }
+      <section className="bg-paper border-t-[3px] border-ink py-20" id="creative-workshop">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-blood mb-3">
-            // Roadmap
-          </div>
+          <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-blood mb-3">// Creative Workshop</div>
           <h2 className="font-display text-5xl md:text-7xl uppercase tracking-tight leading-none mb-6">
-            More coming.<br />
-            <span className="text-blood italic font-serif">Get first access.</span>
+            More than an<br/><span className="text-blood italic font-serif">LRC file.</span>
           </h2>
           <p className="font-serif italic text-xl text-mute max-w-2xl mb-12">
-            LRC is step one. Here's what's being built next — join any waitlist to be notified when it ships.
+            These tools now have working early versions. Open any one, load your timed lyrics and recording, and start creating. Advanced analysis and universal MP4 support remain in development.
           </p>
-
           <div className="grid md:grid-cols-2 gap-4">
             {[
-              {
-                feature: 'karaoke',
-                title: 'Karaoke Player',
-                desc: 'Practice your songs in-app with word-by-word highlighting and loop sections.',
-              },
-              {
-                feature: 'video',
-                title: 'Lyric Video Generator',
-                desc: 'Auto-render MP4 lyric videos with custom templates. YouTube-ready.',
-              },
-              {
-                feature: 'timing',
-                title: 'Vocal Timing Coach',
-                desc: 'See exactly where you rush or drag against the beat. Tighten your phrasing.',
-              },
-              {
-                feature: 'snippets',
-                title: 'Hook Extractor',
-                desc: 'Auto-find the best 15-30 second clips for TikTok, Reels, and Shorts.',
-              },
-              {
-                feature: 'structure',
-                title: 'Song Structure Mapper',
-                desc: 'Auto-label verse, chorus, bridge. Find the "money moment" for promo.',
-              },
-            ].map((item) => (
-              <WaitlistForm key={item.feature} {...item} />
-            ))}
+              {feature:'karaoke',title:'Karaoke Player',status:'BETA',desc:'Follow timed lyric lines, jump to a phrase and loop a verse or chorus. Word highlighting is approximate.'},
+              {feature:'video',title:'Lyric Video Generator',status:'BETA',desc:'Animate lyrics with your recording, select notebook or midnight style, and export MP4 where supported or WebM.'},
+              {feature:'timing',title:'Vocal Timing Practice',status:'BETA',desc:'Tap your vocal entries and see how early or late they are against the LRC. Automatic vocal analysis is still planned.'},
+              {feature:'snippets',title:'Hook Extractor',status:'BETA',desc:'Find chorus and repeated-lyric highlights, preview 15–30-second moments and download a real WAV clip.'},
+              {feature:'structure',title:'Song Structure Mapper',status:'BETA',desc:'Detect and rename verse, chorus and bridge sections; export a timestamped arrangement as JSON for INK.'},
+            ].map(item=><article key={item.feature} className="border-2 border-ink p-6 flex flex-col justify-between gap-5">
+              <div>
+                <div className="flex gap-3 items-start justify-between">
+                  <h3 className="font-display text-2xl uppercase tracking-tight">{item.title}</h3>
+                  <span className="border border-blood text-blood px-2 py-1 text-[10px] font-mono font-bold tracking-widest">{item.status}</span>
+                </div>
+                <p className="font-serif italic text-lg text-mute mt-1">{item.desc}</p>
+              </div>
+              <Link href={'/workshop?feature='+item.feature} className="font-mono text-xs font-bold uppercase text-blood hover:underline">→ Open tool</Link>
+            </article>)}
           </div>
         </div>
       </section>
