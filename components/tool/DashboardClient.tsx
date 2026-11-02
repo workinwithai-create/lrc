@@ -33,6 +33,26 @@ export default function DashboardClient({
     router.refresh();
   }
 
+  async function downloadOriginalAudio(song: any) {
+    try {
+      const response = await fetch('/api/songs/' + encodeURIComponent(song.id) + '/audio');
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not access audio');
+      const audioResponse = await fetch(result.url);
+      if (!audioResponse.ok) throw new Error('Could not download audio');
+      const url = URL.createObjectURL(await audioResponse.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.fileName || 'original-audio';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Audio download failed');
+    }
+  }
+
   function downloadLRC(song: any) {
     const blob = new Blob([song.lrc_content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -168,7 +188,7 @@ export default function DashboardClient({
               {songs.map((song) => (
                 <div
                   key={song.id}
-                  className="border-2 border-ink p-4 flex items-center justify-between gap-4 bg-paper hover:hard-shadow transition-all"
+                  className="border-2 border-ink p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-paper hover:hard-shadow transition-all"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="font-display text-2xl uppercase truncate">{song.title}</div>
@@ -177,14 +197,23 @@ export default function DashboardClient({
                       {formatDuration(song.duration_seconds || 0)} ·{' '}
                       {new Date(song.created_at).toLocaleDateString()}
                     </div>
+                    <div className="font-mono text-[10px] mt-1 text-blood">
+                      {song.audio_storage_path ? '✓ Original audio + LRC saved' : 'LRC saved · Original audio not stored'}
+                    </div>
                   </div>
-                  <Link href={`/editor/${song.id}`} className="border-2 border-ink px-4 py-2 font-mono text-xs font-bold uppercase hover:bg-ink hover:text-paper">Edit timing</Link>
+                  <div className="flex flex-wrap gap-2">
+                    <Link href={'/editor/' + song.id} className="border-2 border-ink px-4 py-2 font-mono text-xs font-bold uppercase hover:bg-ink hover:text-paper">Open project</Link>
+                    {song.audio_storage_path && (
+                      <button type="button" onClick={() => void downloadOriginalAudio(song)}
+                        className="border-2 border-ink px-4 py-2 font-mono text-xs font-bold uppercase hover:bg-ink hover:text-paper">Download audio</button>
+                    )}
                   <button
                     onClick={() => downloadLRC(song)}
                     className="bg-ink text-paper px-4 py-2 font-mono text-xs font-bold tracking-widest uppercase hover:bg-blood"
                   >
-                    Download
+                    Download .lrc
                   </button>
+                  </div>
                 </div>
               ))}
             </div>
