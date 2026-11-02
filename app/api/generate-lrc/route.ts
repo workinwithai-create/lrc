@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient, createAdmin } from '@/lib/supabase/server';
-import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
+import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES, getSafeAudioExtension, isUserAudioPath } from '@/lib/audio-storage';
 import { hasUnlimitedAccess } from '@/lib/owner-access';
 
 export const runtime = 'nodejs';
@@ -127,23 +127,10 @@ export async function POST(req: NextRequest) {
     const duration = whisperResult.duration || getLastWordEnd(mergedWords);
     const lrcContent = buildLRC({ title, artist, durationSec: duration, lines: timedLines, offsetSeconds });
 
-    // --- DECREMENT QUOTA (skip for admin) ---
-    if (!isAdmin) {
-      if (hasMonthlyQuota) {
-        await supabase
-          .from('profiles')
-          .update({ monthly_quota_remaining: profile.monthly_quota_remaining - 1 })
-          .eq('id', user.id);
-      } else {
-        await supabase
-          .from('profiles')
-          .update({ credits: profile.credits - 1 })
-          .eq('id', user.id);
-      }
-    }
-
-    // --- SAVE SONG ---
-    const { data: song } = await supabase
+    // Persist the original recording alongside the generated LRC.
+    // Signed uploads are already in private storage and must not be deleted.
+    const savedAudioPath = audioPath || await storeDirectAudio(user.id, audioBuffer, fileName, mimeType);
+    const { data: song, error: songError } = await supabase
       .from('songs')
       .insert({
         user_id: user.id,
@@ -154,9 +141,31 @@ export async function POST(req: NextRequest) {
         lrc_content: lrcContent,
         word_count: mergedWords.length,
         line_count: timedLines.length,
+        audio_storage_path: savedAudioPath,
+        audio_file_name: fileName,
+        audio_content_type: mimeType,
+        audio_size_bytes: audioBuffer.byteLength,
       })
-      .select()
+      .select('id')
       .single();
+
+    if (songError || !song) {
+      console.error('LRC project save failed:', songError);
+      throw new Error('Could not save the song and original audio in your catalog. Please try again.');
+    }
+
+    // Charge only after the catalog has successfully saved the project.
+    if (!isAdmin) {
+      if (hasMonthlyQuota) {
+        await supabase.from('profiles')
+          .update({ monthly_quota_remaining: profile.monthly_quota_remaining - 1 })
+          .eq('id', user.id);
+      } else {
+        await supabase.from('profiles')
+          .update({ credits: profile.credits - 1 })
+          .eq('id', user.id);
+      }
+    }
 
     // --- LOG USAGE ---
     const deepgramUsed = deepgramWords.length > 0;
@@ -193,6 +202,15 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/** Persist direct multipart audio uploads as well as the normal signed-upload flow. */
+async function storeDirectAudio(userId: string, buffer: ArrayBuffer, name: string, mime: string) {
+  const path = userId + '/' + crypto.randomUUID() + '.' + getSafeAudioExtension(name, mime);
+  const { error } = await createAdmin().storage.from(AUDIO_UPLOAD_BUCKET)
+    .upload(path, buffer, { contentType: mime, upsert: false });
+  if (error) throw new Error('Could not store original audio: ' + error.message);
+  return path;
+}
+
 // ---------- Deepgram ----------
 
 async function getUploadedAudio(
@@ -201,7 +219,7 @@ async function getUploadedAudio(
   fallbackName: string,
   fallbackType: string
 ) {
-  if (!audioPath.startsWith(`${userId}/`)) {
+  if (!isUserAudioPath(audioPath, userId)) {
     throw new Error('Invalid audio upload path');
   }
 
@@ -215,7 +233,7 @@ async function getUploadedAudio(
   }
 
   const audioBuffer = await data.arrayBuffer();
-  await admin.storage.from(AUDIO_UPLOAD_BUCKET).remove([audioPath]);
+  // Do not delete: the original recording remains part of the song project.
 
   return {
     audioBuffer,

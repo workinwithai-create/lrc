@@ -136,7 +136,7 @@ export default function ToolClient({ user, totalCredits: initialCredits }: Props
 
       const data = await readResponseJson(res);
       setProgress(100);
-      setStatusMsg('Done!');
+      setStatusMsg('Original audio and .lrc saved in Your Catalog.');
       setResult({
         lrc: data.lrc,
         wordCount: data.wordCount,
@@ -411,7 +411,7 @@ Chorus line`}
                     onClick={download}
                     className="bg-blood text-paper px-3 py-2 font-mono text-[10px] font-bold tracking-widest uppercase"
                   >
-                    Save
+                    Download .lrc
                   </button>
                 </div>
               </div>
@@ -423,6 +423,12 @@ Chorus line`}
                   {String(Math.floor(result.duration % 60)).padStart(2, '0')}
                 </span>
               </div>
+              {result.songId && (
+                <div className="bg-paper p-3 border-b-2 border-ink font-mono text-xs">
+                  Original audio and timed lyrics saved in Your Catalog.{' '}
+                  <Link className="font-bold text-blood underline" href={'/editor/' + result.songId}>Reopen saved project</Link>
+                </div>
+              )}
               <pre className="bg-ink text-paper p-4 font-mono text-xs leading-loose max-h-80 overflow-auto whitespace-pre">
                 {result.lrc}
               </pre>
