@@ -56,10 +56,20 @@ CREATE TABLE IF NOT EXISTS public.songs (
   duration_seconds numeric,
   mode text DEFAULT 'smart',     -- 'smart' | 'strict'
   lrc_content text,
+  audio_storage_path text,
+  audio_file_name text,
+  audio_content_type text,
+  audio_size_bytes bigint,
   word_count integer,
   line_count integer,
   created_at timestamptz DEFAULT now()
 );
+
+-- Additive upgrades for existing projects; does not touch old songs.
+ALTER TABLE public.songs ADD COLUMN IF NOT EXISTS audio_storage_path text;
+ALTER TABLE public.songs ADD COLUMN IF NOT EXISTS audio_file_name text;
+ALTER TABLE public.songs ADD COLUMN IF NOT EXISTS audio_content_type text;
+ALTER TABLE public.songs ADD COLUMN IF NOT EXISTS audio_size_bytes bigint;
 
 CREATE INDEX idx_songs_user_id ON public.songs(user_id);
 CREATE INDEX idx_songs_created ON public.songs(created_at DESC);

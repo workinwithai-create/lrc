@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import TimingEditor from './TimingEditor';
 
@@ -13,6 +13,42 @@ export default function CatalogTimingEditor({
   initialLrc: string;
 }) {
   const [lrc, setLrc] = useState(initialLrc);
+  const [savedAudio, setSavedAudio] = useState<File | null>(null);
+  const [audioState, setAudioState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    async function restoreAudio() {
+      try {
+        const response = await fetch('/api/songs/' + encodeURIComponent(songId) + '/audio', {
+          signal: controller.signal, cache: 'no-store',
+        });
+        if (response.status === 404) {
+          if (active) setAudioState('missing');
+          return;
+        }
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not open saved audio');
+        const fileResponse = await fetch(result.url, { signal: controller.signal });
+        if (!fileResponse.ok) throw new Error('Could not download saved audio');
+        const blob = await fileResponse.blob();
+        if (active) {
+          setSavedAudio(new File([blob], result.fileName || 'original-audio', {
+            type: result.contentType || blob.type || 'audio/mpeg',
+          }));
+          setAudioState('ready');
+        }
+      } catch (err) {
+        if (active && !controller.signal.aborted) {
+          console.error('LRC saved audio recovery failed:', err);
+          setAudioState('error');
+        }
+      }
+    }
+    void restoreAudio();
+    return () => { active = false; controller.abort(); };
+  }, [songId]);
 
   function download() {
     const fileName = (title || 'song').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.lrc';
@@ -35,7 +71,13 @@ export default function CatalogTimingEditor({
         <button type="button" onClick={download} className="bg-blood text-paper font-mono text-xs font-bold px-5 py-3">Download corrected .lrc</button>
         <button type="button" onClick={() => void navigator.clipboard.writeText(lrc)} className="border-2 border-ink font-mono text-xs font-bold px-5 py-3">Copy LRC</button>
       </div>
-      <TimingEditor key={songId} initialLrc={lrc} audioFile={null} songId={songId} onLrcChange={setLrc} />
+      <p role="status" className="font-mono text-xs text-mute">
+        {audioState === 'loading' && 'Loading your saved original recording…'}
+        {audioState === 'ready' && 'Original audio and timed lyrics restored from your catalog.'}
+        {audioState === 'missing' && 'This older project has no saved original audio. You can attach a local recording for editing.'}
+        {audioState === 'error' && 'Audio could not be loaded. Your saved LRC is still available.'}
+      </p>
+      <TimingEditor key={songId} initialLrc={lrc} audioFile={savedAudio} audioLoading={audioState === 'loading'} songId={songId} onLrcChange={setLrc} />
     </main>
   );
 }

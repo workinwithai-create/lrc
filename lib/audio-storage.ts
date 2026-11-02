@@ -30,3 +30,11 @@ export function getAudioMimeType(fileName: string, browserMime = ''): string {
   if (browserMime.startsWith('audio/')) return browserMime;
   return known[extension] || '';
 }
+
+/** Accept only the UUID-named objects created under the signed-in owner's folder. */
+export function isUserAudioPath(path: string, userId: string): boolean {
+  const prefix = userId + '/';
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+    && path.startsWith(prefix)
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp3|wav|m4a|flac|ogg|aac|webm|audio)$/i.test(path.slice(prefix.length));
+}

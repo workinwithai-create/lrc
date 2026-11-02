@@ -8,11 +8,12 @@ import FeatureStudio from './FeatureStudio';
 type Props = {
   initialLrc: string;
   audioFile: File | null;
+  audioLoading?: boolean;
   songId?: string | null;
   onLrcChange: (lrc: string) => void;
 };
 
-export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChange }: Props) {
+export default function TimingEditor({ initialLrc, audioFile, audioLoading = false, songId, onLrcChange }: Props) {
   const initial = parseLrc(initialLrc);
   const [lines, setLines] = useState<LrcLine[]>(() => initial.lines);
   const [savedLrc, setSavedLrc] = useState(initialLrc);
@@ -89,9 +90,9 @@ export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChang
           Your original words and section order are preserved.
         </p>
       </div>
-      {!audioFile && (
+      {!audioFile && !audioLoading && (
         <label className="block border border-ink p-3 font-mono text-xs cursor-pointer">
-          Load the recording for timing playback (stays on this device)
+          Attach recording for older projects (stays on this device)
           <input type="file" accept="audio/*,.mp3,.m4a,.wav,.flac" className="block mt-2 text-xs" onChange={(e) => setSelectedAudio(e.target.files?.[0] ?? null)} />
         </label>
       )}
@@ -107,7 +108,7 @@ export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChang
           aria-label="Original recording"
         />
       ) : (
-        <p className="font-mono text-xs text-mute">Audio preview is available immediately after generating. Saved songs can be downloaded without audio.</p>
+        <p className="font-mono text-xs text-mute">{audioLoading ? 'Restoring original audio…' : 'No stored original recording for this older project. Attach audio above to edit with playback.'}</p>
       )}
       <div className="font-mono text-xs">Playhead: <strong>{playhead.toFixed(2)}s</strong> · {lines.length} lines</div>
       <div className="max-h-96 overflow-y-auto border border-ink divide-y divide-ink/20">
