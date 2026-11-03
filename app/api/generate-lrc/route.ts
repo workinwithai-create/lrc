@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient, createAdmin } from '@/lib/supabase/server';
-import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES } from '@/lib/audio-storage';
+import { AUDIO_UPLOAD_BUCKET, MAX_AUDIO_BYTES, getSafeAudioExtension } from '@/lib/audio-storage';
 import { hasUnlimitedAccess } from '@/lib/owner-access';
 
 export const runtime = 'nodejs';
@@ -89,6 +89,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Audio file exceeds 25MB limit' }, { status: 413 });
     }
 
+    // Keep the original recording in private storage for future corrections.
+    // Previously getUploadedAudio() deleted this object immediately.
+    let persistentAudioPath = audioPath;
+    if (!persistentAudioPath) {
+      const extension = getSafeAudioExtension(fileName, mimeType);
+      persistentAudioPath = `${user.id}/${crypto.randomUUID()}.${extension}`;
+      const { error: storageError } = await createAdmin().storage
+        .from(AUDIO_UPLOAD_BUCKET)
+        .upload(persistentAudioPath, Buffer.from(audioBuffer), { contentType: mimeType, upsert: false });
+      if (storageError) throw new Error('Could not preserve your recording. Please try again.');
+    }
+
     const audioForWhisper = new File([audioBuffer], fileName, { type: mimeType });
 
     // --- TRANSCRIBE: Whisper + Deepgram in parallel ---
@@ -127,23 +139,8 @@ export async function POST(req: NextRequest) {
     const duration = whisperResult.duration || getLastWordEnd(mergedWords);
     const lrcContent = buildLRC({ title, artist, durationSec: duration, lines: timedLines, offsetSeconds });
 
-    // --- DECREMENT QUOTA (skip for admin) ---
-    if (!isAdmin) {
-      if (hasMonthlyQuota) {
-        await supabase
-          .from('profiles')
-          .update({ monthly_quota_remaining: profile.monthly_quota_remaining - 1 })
-          .eq('id', user.id);
-      } else {
-        await supabase
-          .from('profiles')
-          .update({ credits: profile.credits - 1 })
-          .eq('id', user.id);
-      }
-    }
-
-    // --- SAVE SONG ---
-    const { data: song } = await supabase
+    // --- SAVE THE RECORDING + TIMED LYRICS TOGETHER ---
+    const { data: song, error: saveError } = await supabase
       .from('songs')
       .insert({
         user_id: user.id,
@@ -152,11 +149,31 @@ export async function POST(req: NextRequest) {
         duration_seconds: duration,
         mode,
         lrc_content: lrcContent,
+        audio_path: persistentAudioPath,
+        audio_filename: fileName.slice(0, 255),
         word_count: mergedWords.length,
         line_count: timedLines.length,
       })
-      .select()
+      .select('id')
       .single();
+
+    if (saveError || !song) {
+      console.error('[LRC generation] Song was not saved:', saveError);
+      throw new Error('Could not save the song and recording. No generation credits were used.');
+    }
+
+    // Only charge a credit once the song has been persisted.
+    if (!isAdmin) {
+      if (hasMonthlyQuota) {
+        await supabase.from('profiles')
+          .update({ monthly_quota_remaining: profile.monthly_quota_remaining - 1 })
+          .eq('id', user.id);
+      } else {
+        await supabase.from('profiles')
+          .update({ credits: profile.credits - 1 })
+          .eq('id', user.id);
+      }
+    }
 
     // --- LOG USAGE ---
     const deepgramUsed = deepgramWords.length > 0;
@@ -215,7 +232,7 @@ async function getUploadedAudio(
   }
 
   const audioBuffer = await data.arrayBuffer();
-  await admin.storage.from(AUDIO_UPLOAD_BUCKET).remove([audioPath]);
+  // Do not delete: the song catalog references this private storage object.
 
   return {
     audioBuffer,
