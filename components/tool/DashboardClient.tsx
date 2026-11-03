@@ -175,10 +175,11 @@ export default function DashboardClient({
                     <div className="font-mono text-xs text-mute">
                       {song.artist} · {song.mode} mode · {song.line_count} lines ·{' '}
                       {formatDuration(song.duration_seconds || 0)} ·{' '}
-                      {new Date(song.created_at).toLocaleDateString()}
+                      {new Date(song.created_at).toLocaleDateString()} ·{' '}
+                      {song.audio_path ? 'Recording saved' : 'Recording not linked'}
                     </div>
                   </div>
-                  <Link href={`/editor/${song.id}`} className="border-2 border-ink px-4 py-2 font-mono text-xs font-bold uppercase hover:bg-ink hover:text-paper">Edit timing</Link>
+                  <Link href={`/editor/${song.id}`} className="border-2 border-ink px-4 py-2 font-mono text-xs font-bold uppercase hover:bg-ink hover:text-paper">{song.audio_path ? 'Open song' : 'Reattach audio'}</Link>
                   <button
                     onClick={() => downloadLRC(song)}
                     className="bg-ink text-paper px-4 py-2 font-mono text-xs font-bold tracking-widest uppercase hover:bg-blood"
