@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS public.songs (
   duration_seconds numeric,
   mode text DEFAULT 'smart',     -- 'smart' | 'strict'
   lrc_content text,
+  audio_path text,            -- private lrc-audio-uploads object (user_id/uuid.ext)
+  audio_filename text,        -- original download filename
   word_count integer,
   line_count integer,
   created_at timestamptz DEFAULT now()
@@ -73,6 +75,11 @@ CREATE POLICY "users see own songs"
 CREATE POLICY "users insert own songs"
   ON public.songs FOR INSERT
   WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "users update own songs"
+  ON public.songs FOR UPDATE TO authenticated
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "users delete own songs"
   ON public.songs FOR DELETE

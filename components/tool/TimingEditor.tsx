@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { parseLrc, retimeLine, serializeLrc, type LrcLine } from '@/lib/lrc-timing';
+import { isPossibleGeneratorCredit, moveCreditToMetadata } from '@/lib/lrc-credits';
 import HandwrittenPlayer from './HandwrittenPlayer';
 import FeatureStudio from './FeatureStudio';
 
@@ -9,12 +10,14 @@ type Props = {
   initialLrc: string;
   audioFile: File | null;
   songId?: string | null;
+  savedAudioUrl?: string | null;
   onLrcChange: (lrc: string) => void;
 };
 
-export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChange }: Props) {
+export default function TimingEditor({ initialLrc, audioFile, songId, savedAudioUrl, onLrcChange }: Props) {
   const initial = parseLrc(initialLrc);
   const [lines, setLines] = useState<LrcLine[]>(() => initial.lines);
+  const [metadata, setMetadata] = useState<string[]>(() => initial.metadata);
   const [savedLrc, setSavedLrc] = useState(initialLrc);
   const [audioUrl, setAudioUrl] = useState('');
   const [selectedAudio, setSelectedAudio] = useState<File | null>(null);
@@ -23,7 +26,8 @@ export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChang
   const [status, setStatus] = useState('');
   const [saving, setSaving] = useState(false);
   const player = useRef<HTMLAudioElement>(null);
-  const currentLrc = serializeLrc({ metadata: initial.metadata, lines });
+  const currentLrc = serializeLrc({ metadata, lines });
+  const playbackUrl = audioUrl || savedAudioUrl || '';
   const dirty = currentLrc !== savedLrc;
 
   useEffect(() => {
@@ -35,12 +39,21 @@ export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChang
 
   function change(next: LrcLine[]) {
     setLines(next);
-    onLrcChange(serializeLrc({ metadata: initial.metadata, lines: next }));
+    onLrcChange(serializeLrc({ metadata, lines: next }));
     setStatus('');
   }
 
   function changeText(index: number, text: string) {
     change(lines.map((line, i) => i === index ? { ...line, text } : line));
+  }
+
+  function moveCredit(index: number) {
+    const moved = moveCreditToMetadata({ metadata, lines }, index);
+    if (moved.lines === lines) return;
+    setMetadata(moved.metadata);
+    setLines(moved.lines);
+    onLrcChange(serializeLrc(moved));
+    setStatus('Source credit moved to LRC metadata. Save your corrections to keep it.');
   }
 
   function seek(seconds: number) {
@@ -89,18 +102,18 @@ export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChang
           Your original words and section order are preserved.
         </p>
       </div>
-      {!audioFile && (
+      {!audioFile && !savedAudioUrl && (
         <label className="block border border-ink p-3 font-mono text-xs cursor-pointer">
           Load the recording for timing playback (stays on this device)
           <input type="file" accept="audio/*,.mp3,.m4a,.wav,.flac" className="block mt-2 text-xs" onChange={(e) => setSelectedAudio(e.target.files?.[0] ?? null)} />
         </label>
       )}
-      {audioUrl ? (
+      {playbackUrl ? (
         <audio
           ref={player}
           controls
           preload="metadata"
-          src={audioUrl}
+          src={playbackUrl}
           onTimeUpdate={(e) => setPlayhead(e.currentTarget.currentTime)}
           onSeeked={(e) => setPlayhead(e.currentTarget.currentTime)}
           className="w-full"
@@ -117,14 +130,20 @@ export default function TimingEditor({ initialLrc, audioFile, songId, onLrcChang
               <button
                 type="button"
                 onClick={() => seek(line.seconds)}
-                disabled={!audioUrl}
+                disabled={!playbackUrl}
                 className="font-mono text-xs font-bold text-blood hover:underline disabled:opacity-40"
                 aria-label={`Listen at line ${i + 1}`}
               >▶ {line.seconds.toFixed(2)}s</button>
               <button type="button" className="border border-ink px-2 py-1 text-xs" onClick={() => change(retimeLine(lines, i, line.seconds - 0.1))}>−0.1s</button>
               <button type="button" className="border border-ink px-2 py-1 text-xs" onClick={() => change(retimeLine(lines, i, line.seconds + 0.1))}>+0.1s</button>
-              <button type="button" disabled={!audioUrl} className="border border-ink px-2 py-1 text-xs disabled:opacity-40" onClick={() => change(retimeLine(lines, i, player.current?.currentTime ?? playhead))}>Set to playhead</button>
+              <button type="button" disabled={!playbackUrl} className="border border-ink px-2 py-1 text-xs disabled:opacity-40" onClick={() => change(retimeLine(lines, i, player.current?.currentTime ?? playhead))}>Set to playhead</button>
             </div>
+            {isPossibleGeneratorCredit(line.text) && (
+              <div className="border-l-4 border-gold p-2 bg-gold/10 space-y-1">
+                <p className="text-xs font-mono">Possible generator/source credit — review before moving. The text will be preserved in LRC metadata, not silently deleted.</p>
+                <button type="button" className="border border-ink px-2 py-1 text-xs font-mono" onClick={() => moveCredit(i)}>Move to credits (keep attribution)</button>
+              </div>
+            )}
             <input
               type="text"
               value={line.text}

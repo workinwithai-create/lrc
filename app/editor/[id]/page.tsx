@@ -16,7 +16,7 @@ export default async function EditSongPage({
 
   const { data: song, error } = await supabase
     .from('songs')
-    .select('id, title, artist, lrc_content')
+    .select('id, title, artist, lrc_content, audio_path')
     .eq('id', id)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -30,6 +30,7 @@ export default async function EditSongPage({
       title={song.title}
       artist={song.artist}
       initialLrc={song.lrc_content}
+      hasStoredAudio={Boolean(song.audio_path)}
     />
   );
 }
