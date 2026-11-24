@@ -1,5 +1,12 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import FeatureStudio from '@/components/tool/FeatureStudio';
+
+export const metadata: Metadata = {
+  title: 'Creative Workshop — lyric videos, karaoke and hooks | LRC Forge',
+  description: 'Make a lyric video, play karaoke, pull the hook, map song structure and practice vocal timing from your .lrc file and recording, right in the browser.',
+  alternates: { canonical: '/workshop' },
+};
 
 type Feature = 'karaoke'|'video'|'timing'|'snippets'|'structure';
 export default async function WorkshopPage({searchParams}:{searchParams:Promise<{feature?:string}>}) {

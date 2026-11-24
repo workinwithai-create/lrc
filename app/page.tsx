@@ -1,4 +1,8 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
+import StructuredData from '@/components/StructuredData';
+
+export const metadata: Metadata = { alternates: { canonical: '/' } };
 
 // Billing is on the WorkinWithAI hub — same destination as /pricing.
 const HUB_PRICING = 'https://workinwithai.com/#pricing';
@@ -6,6 +10,7 @@ const HUB_PRICING = 'https://workinwithai.com/#pricing';
 export default function LandingPage() {
   return (
     <main className="min-h-screen">
+      <StructuredData />
       {/* Nav */}
       <nav className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between border-b-[3px] border-ink">
         <div className="font-display text-3xl tracking-tight">
